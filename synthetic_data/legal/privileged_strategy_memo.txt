@@ -1,0 +1,29 @@
+ATTORNEY-CLIENT PRIVILEGED - DO NOT FORWARD
+
+MEMORANDUM
+To: Elena V. Morris, General Counsel
+From: Priya S. Raman, Outside Counsel
+Date: 04/22/2026
+Re: Campbell Meridian Design LLC v. Orion Fabrication Ltd.
+
+PRIVILEGED AND CONFIDENTIAL - ATTORNEY WORK PRODUCT
+
+Background:
+Our client Aisha N. Campbell alleges that Orion Fabrication Ltd. failed to
+deliver custom equipment after receiving the $48,250.00 final invoice payment.
+The disputed wire originated from account 4111 1111 1111 1111. Client contact:
+aisha.campbell@example.com, (312) 555-0177.
+
+Settlement posture:
+Opposing counsel, Daniel J. Cho, informally suggested a payment plan but has
+not admitted liability. We should preserve the argument that the missed
+delivery date caused consequential damages to Campbell Meridian Design LLC.
+
+Recommendation:
+Send a Rule 408 settlement communication offering to resolve the dispute for
+$72,000 plus return of unused materials. Do not disclose the internal damages
+model or witness-preparation notes.
+
+Case strategy:
+If mediation fails, file the motion to compel and attach only public invoice
+records. Keep this memorandum restricted to the litigation team.

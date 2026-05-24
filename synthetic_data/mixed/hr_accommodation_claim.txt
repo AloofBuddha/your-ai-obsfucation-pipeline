@@ -1,0 +1,29 @@
+HR ACCOMMODATION AND CLAIM REVIEW
+
+Employee: Jordan M. Ellis
+Employee ID: EMP-88421
+DOB: 11/03/1990
+Email: jordan.ellis@example.org
+Phone: (206) 555-0129
+Home Address: 510 Pine St, Apt 1208, Seattle, WA 98101
+
+Request:
+Jordan M. Ellis requested a remote-work accommodation after a diagnosis of
+major depressive disorder and generalized anxiety disorder. The supporting
+letter from Dr. Maria Santos references Sertraline 50 mg and ongoing therapy.
+Clinic MRN: MRN: 8349201.
+
+Benefits and payroll:
+Insurance: Member ID: PREM5520192, Group: SEA7788
+Direct Deposit Account: 4012 8888 8888 1881
+Tax ID on payroll profile: 81-2345678
+
+Legal review:
+PRIVILEGED AND CONFIDENTIAL - ATTORNEY WORK PRODUCT
+Counsel should assess ADA accommodation obligations and retaliation risk before
+the manager receives any medical details. Settlement discussions, if any, are
+covered by Rule 408.
+
+Operational note:
+The manager only needs functional restrictions and approved schedule changes,
+not diagnosis, medication, MRN, insurance, or account details.

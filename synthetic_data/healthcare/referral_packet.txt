@@ -1,0 +1,29 @@
+SPECIALTY REFERRAL PACKET
+
+Referring clinic: North Pier Family Health
+Patient Name: Mateo R. Alvarez
+DOB: 02/07/1974
+MRN: 7293841
+Insurance: Member ID: HZN88420019, Group: RXA44210
+Address: 42 Harbor View Ave, Boston, MA 02110
+Phone: (617) 555-0134
+Email: mateo.alvarez@example.org
+
+Reason for referral:
+Mateo R. Alvarez has Type 2 diabetes, hypertension, and hyperlipidemia. His
+most recent A1c was 8.2%, and fasting glucose was 152 mg/dL. He reports
+intermittent chest tightness with exertion.
+
+Current medications:
+- Metformin 500 mg twice daily
+- Lisinopril 20 mg once daily
+- Atorvastatin 10 mg once at bedtime
+- Aspirin 81 mg daily
+
+Assessment:
+Please evaluate diabetes control and cardiovascular risk. The patient denies
+tobacco use. Family history includes myocardial infarction in father at age 61.
+
+Signed:
+Dr. Helen Park, MD
+Medical License: HP223344

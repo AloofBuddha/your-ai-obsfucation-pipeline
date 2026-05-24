@@ -1,0 +1,23 @@
+CUSTOMER SUPPORT INCIDENT REPORT
+
+Ticket ID: CS-2026-0418
+Customer: Naomi L. Brooks
+Date of Birth: 09/18/1987
+Email: naomi.brooks@example.net
+Phone: (415) 555-0198
+Mailing Address: 88 Mission Creek Dr, Unit 14C, San Francisco, CA 94158
+
+Identity verification notes:
+- SSN last confirmed on file as 529-99-0001.
+- Driver License: D1234567, California.
+- Passport Number: X12345678.
+
+Security context:
+The customer reported two password-reset emails after a login from IP address
+198.51.100.42. The link she received was https://support.example.com/reset/naomi.
+She says she did not request the reset and asked that all account access be
+locked pending review.
+
+Agent notes:
+Naomi L. Brooks was calm but concerned that the reset URL exposed her account
+history. Send follow-up only to naomi.brooks@example.net.

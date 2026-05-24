@@ -1,0 +1,29 @@
+TAX AND WIRE TRANSFER REVIEW PACKET
+
+Client: Aisha N. Campbell
+SSN: 219-09-9988
+Email: aisha.campbell@example.com
+Phone: (312) 555-0177
+Residential Address: 701 West Adams St, Apt 9B, Chicago, IL 60661
+
+Business entity:
+Name: Campbell Meridian Design LLC
+Federal Tax ID (EIN): 47-1234567
+Business Address: 155 North Canal St, Suite 410, Chicago, IL 60606
+
+Wire request:
+Originating Account Number: 4111 1111 1111 1111
+Destination Account Number: 5500 0000 0000 0004
+IBAN: GB82 WEST 1234 5698 7654 32
+Beneficiary: Orion Fabrication Ltd.
+Amount: $48,250.00
+Purpose: Final invoice payment for build-out materials.
+
+Crypto disclosure:
+Client also reported a custody wallet used for vendor deposits:
+1BoatSLRHtKNngkdXEeobR76b53LETtpyT.
+
+Reviewer notes:
+The EIN and both account numbers must be removed before sending the packet to
+an external analysis provider. The amount and payment purpose may be retained
+unless policy requires financial-transaction minimization.

@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "description": "Hand-authored synthetic corpus for obfuscation demos, manual QA, and future fixture tests.",
+  "documents": [
+    {
+      "id": "identity_customer_support_incident",
+      "path": "identity/customer_support_incident.txt",
+      "scenario": "identity",
+      "primary_categories": ["PII"],
+      "entity_types": [
+        "PII_NAME",
+        "PII_DOB",
+        "PII_EMAIL",
+        "PII_PHONE",
+        "PII_ADDRESS",
+        "PII_SSN",
+        "PII_DRIVER_LICENSE",
+        "PII_PASSPORT",
+        "PII_IP",
+        "PII_URL"
+      ],
+      "obfuscation_notes": [
+        "Generic PII can usually use pseudonymization for readability.",
+        "Government IDs, IPs, and URLs should be tokenized or typed-placeholdered because realistic surrogates can still be sensitive or actionable."
+      ],
+      "planted_entities": [
+        {"type": "PII_NAME", "value": "Naomi L. Brooks"},
+        {"type": "PII_DOB", "value": "09/18/1987"},
+        {"type": "PII_EMAIL", "value": "naomi.brooks@example.net"},
+        {"type": "PII_PHONE", "value": "(415) 555-0198"},
+        {"type": "PII_ADDRESS", "value": "88 Mission Creek Dr"},
+        {"type": "PII_SSN", "value": "529-99-0001"},
+        {"type": "PII_DRIVER_LICENSE", "value": "D1234567"},
+        {"type": "PII_PASSPORT", "value": "X12345678"},
+        {"type": "PII_IP", "value": "198.51.100.42"},
+        {"type": "PII_URL", "value": "https://support.example.com/reset/naomi"}
+      ]
+    },
+    {
+      "id": "healthcare_referral_packet",
+      "path": "healthcare/referral_packet.txt",
+      "scenario": "healthcare",
+      "primary_categories": ["PII", "PHI"],
+      "entity_types": [
+        "PII_NAME",
+        "PII_DOB",
+        "PII_EMAIL",
+        "PII_PHONE",
+        "PII_ADDRESS",
+        "PHI_MRN",
+        "PHI_INSURANCE_ID",
+        "PHI_DIAGNOSIS",
+        "PHI_MEDICATION",
+        "PHI_MEDICAL_LICENSE"
+      ],
+      "obfuscation_notes": [
+        "Clinical facts are useful to the model but sensitive; this is where tokenize-vs-semantic-preservation tradeoffs are most visible.",
+        "Identifiers such as MRN, insurance IDs, and medical license numbers should not be replaced with realistic values unless there is a strong reason."
+      ],
+      "planted_entities": [
+        {"type": "PII_NAME", "value": "Mateo R. Alvarez"},
+        {"type": "PII_DOB", "value": "02/07/1974"},
+        {"type": "PHI_MRN", "value": "MRN: 7293841"},
+        {"type": "PHI_INSURANCE_ID", "value": "Member ID: HZN88420019"},
+        {"type": "PHI_INSURANCE_ID", "value": "Group: RXA44210"},
+        {"type": "PII_ADDRESS", "value": "42 Harbor View Ave"},
+        {"type": "PII_PHONE", "value": "(617) 555-0134"},
+        {"type": "PII_EMAIL", "value": "mateo.alvarez@example.org"},
+        {"type": "PHI_DIAGNOSIS", "value": "Type 2 diabetes"},
+        {"type": "PHI_DIAGNOSIS", "value": "hypertension"},
+        {"type": "PHI_DIAGNOSIS", "value": "hyperlipidemia"},
+        {"type": "PHI_DIAGNOSIS", "value": "myocardial infarction"},
+        {"type": "PHI_MEDICATION", "value": "Metformin 500 mg"},
+        {"type": "PHI_MEDICATION", "value": "Lisinopril 20 mg"},
+        {"type": "PHI_MEDICATION", "value": "Atorvastatin 10 mg"},
+        {"type": "PHI_MEDICATION", "value": "Aspirin 81 mg"},
+        {"type": "PHI_MEDICAL_LICENSE", "value": "HP223344"}
+      ]
+    },
+    {
+      "id": "financial_tax_and_wire_packet",
+      "path": "financial/tax_and_wire_packet.txt",
+      "scenario": "financial",
+      "primary_categories": ["PII", "FIN"],
+      "entity_types": [
+        "PII_NAME",
+        "PII_SSN",
+        "PII_EMAIL",
+        "PII_PHONE",
+        "PII_ADDRESS",
+        "FIN_TAX_ID",
+        "FIN_ACCOUNT_NUMBER",
+        "FIN_IBAN",
+        "FIN_CRYPTO"
+      ],
+      "obfuscation_notes": [
+        "Luhn-valid account numbers are planted so account detection can be tested without real financial data.",
+        "Amounts and transaction purposes are not direct identifiers, but may still be sensitive depending on policy."
+      ],
+      "planted_entities": [
+        {"type": "PII_NAME", "value": "Aisha N. Campbell"},
+        {"type": "PII_SSN", "value": "219-09-9988"},
+        {"type": "PII_EMAIL", "value": "aisha.campbell@example.com"},
+        {"type": "PII_PHONE", "value": "(312) 555-0177"},
+        {"type": "PII_ADDRESS", "value": "701 West Adams St"},
+        {"type": "FIN_TAX_ID", "value": "47-1234567"},
+        {"type": "PII_ADDRESS", "value": "155 North Canal St"},
+        {"type": "FIN_ACCOUNT_NUMBER", "value": "4111 1111 1111 1111"},
+        {"type": "FIN_ACCOUNT_NUMBER", "value": "5500 0000 0000 0004"},
+        {"type": "FIN_IBAN", "value": "GB82 WEST 1234 5698 7654 32"},
+        {"type": "FIN_CRYPTO", "value": "1BoatSLRHtKNngkdXEeobR76b53LETtpyT"}
+      ]
+    },
+    {
+      "id": "legal_privileged_strategy_memo",
+      "path": "legal/privileged_strategy_memo.txt",
+      "scenario": "legal",
+      "primary_categories": ["PII", "FIN", "LEGAL"],
+      "entity_types": [
+        "LEGAL_PRIVILEGE",
+        "PII_NAME",
+        "PII_EMAIL",
+        "PII_PHONE",
+        "FIN_ACCOUNT_NUMBER"
+      ],
+      "obfuscation_notes": [
+        "Privilege markers are themselves sensitive because they reveal legal strategy and document status.",
+        "The right output may retain public procedural context while removing client identity, counsel names, and account details."
+      ],
+      "planted_entities": [
+        {"type": "LEGAL_PRIVILEGE", "value": "ATTORNEY-CLIENT PRIVILEGED"},
+        {"type": "LEGAL_PRIVILEGE", "value": "PRIVILEGED AND CONFIDENTIAL"},
+        {"type": "LEGAL_PRIVILEGE", "value": "ATTORNEY WORK PRODUCT"},
+        {"type": "LEGAL_PRIVILEGE", "value": "Rule 408"},
+        {"type": "PII_NAME", "value": "Elena V. Morris"},
+        {"type": "PII_NAME", "value": "Priya S. Raman"},
+        {"type": "PII_NAME", "value": "Aisha N. Campbell"},
+        {"type": "PII_NAME", "value": "Daniel J. Cho"},
+        {"type": "PII_EMAIL", "value": "aisha.campbell@example.com"},
+        {"type": "PII_PHONE", "value": "(312) 555-0177"},
+        {"type": "FIN_ACCOUNT_NUMBER", "value": "4111 1111 1111 1111"}
+      ]
+    },
+    {
+      "id": "mixed_hr_accommodation_claim",
+      "path": "mixed/hr_accommodation_claim.txt",
+      "scenario": "mixed",
+      "primary_categories": ["PII", "PHI", "FIN", "LEGAL"],
+      "entity_types": [
+        "PII_NAME",
+        "PII_DOB",
+        "PII_EMAIL",
+        "PII_PHONE",
+        "PII_ADDRESS",
+        "PHI_DIAGNOSIS",
+        "PHI_MEDICATION",
+        "PHI_MRN",
+        "PHI_INSURANCE_ID",
+        "FIN_ACCOUNT_NUMBER",
+        "FIN_TAX_ID",
+        "LEGAL_PRIVILEGE"
+      ],
+      "obfuscation_notes": [
+        "This is the most realistic policy test: the LLM may need workplace restrictions but not diagnosis, medication, payroll, or privilege details.",
+        "Good candidate for testing future field-level minimization beyond entity masking."
+      ],
+      "planted_entities": [
+        {"type": "PII_NAME", "value": "Jordan M. Ellis"},
+        {"type": "PII_DOB", "value": "11/03/1990"},
+        {"type": "PII_EMAIL", "value": "jordan.ellis@example.org"},
+        {"type": "PII_PHONE", "value": "(206) 555-0129"},
+        {"type": "PII_ADDRESS", "value": "510 Pine St"},
+        {"type": "PHI_DIAGNOSIS", "value": "major depressive disorder"},
+        {"type": "PHI_DIAGNOSIS", "value": "generalized anxiety disorder"},
+        {"type": "PHI_MEDICATION", "value": "Sertraline 50 mg"},
+        {"type": "PHI_MRN", "value": "MRN: 8349201"},
+        {"type": "PHI_INSURANCE_ID", "value": "Member ID: PREM5520192"},
+        {"type": "PHI_INSURANCE_ID", "value": "Group: SEA7788"},
+        {"type": "FIN_ACCOUNT_NUMBER", "value": "4012 8888 8888 1881"},
+        {"type": "FIN_TAX_ID", "value": "81-2345678"},
+        {"type": "LEGAL_PRIVILEGE", "value": "PRIVILEGED AND CONFIDENTIAL"},
+        {"type": "LEGAL_PRIVILEGE", "value": "ATTORNEY WORK PRODUCT"},
+        {"type": "LEGAL_PRIVILEGE", "value": "Rule 408"}
+      ]
+    }
+  ]
+}
