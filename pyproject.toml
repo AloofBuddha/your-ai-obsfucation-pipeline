@@ -1,0 +1,112 @@
+[project]
+name = "secure-context-pipeline"
+version = "0.1.0"
+description = "PII/PHI obfuscation pipeline for external LLM providers"
+requires-python = ">=3.10,<3.13"
+readme = "README.md"
+
+dependencies = [
+  # Web layer
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "python-multipart>=0.0.20",
+  "httpx>=0.28",
+
+  # Config + validation
+  "pydantic>=2.10",
+  "pydantic-settings>=2.6",
+  "python-dotenv>=1.0",
+
+  # Async I/O
+  "aiosqlite>=0.20",
+  "aiofiles>=24.1",
+
+  # Crypto
+  "cryptography>=43.0",
+
+  # LLM
+  "anthropic>=0.40",
+
+  # Detection
+  "presidio-analyzer>=2.2",
+  "spacy>=3.7,<3.9",
+
+  # Document parsing
+  "python-docx>=1.1",
+  "pypdf>=5.1",
+  "pytesseract>=0.3.13",
+  "pdf2image>=1.17",
+  "pillow>=11.0",
+
+  # Pseudonymization + fixture gen
+  "faker>=33.0",
+
+  # PDF generation for fixtures
+  "reportlab>=4.2",
+]
+
+[project.optional-dependencies]
+tracing = ["langsmith>=0.2"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "types-aiofiles",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+  "audit",
+  "vault",
+  "detection",
+  "obfuscation",
+  "store",
+  "llm_client",
+  "deobfuscation",
+  "pipeline",
+  "api",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+  "perf: performance benchmark tests (may be slow)",
+  "integration: integration tests requiring full stack",
+  "llm: tests that make real Anthropic API calls (skipped without ANTHROPIC_API_KEY)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "SIM"]
+ignore = [
+  "E501",       # line length handled by formatter
+  "ASYNC240",   # blocking pathlib calls in async fns — acceptable at MVP scale
+  "B008",       # function call in arg defaults — FastAPI `File(...)` requires this pattern
+  "SIM117",     # nested-with — sometimes clearer than the merged form
+  "SIM105",     # try/except/pass — accept in test teardown
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["presidio_analyzer.*", "pypdf.*", "pdf2image.*", "pytesseract.*", "docx.*", "reportlab.*"]
+ignore_missing_imports = true

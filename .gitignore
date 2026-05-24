@@ -1,0 +1,60 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# Testing & type-checking caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Node / Vite (UI)
+node_modules/
+ui/dist/
+ui/.vite/
+ui/coverage/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Runtime data — encrypted docs, vault SQLite, audit log
+.demo/
+data/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.enc
+audit.jsonl
+audit.*.jsonl
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+*.log

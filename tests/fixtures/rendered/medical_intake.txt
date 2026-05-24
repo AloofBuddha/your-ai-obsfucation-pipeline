@@ -1,0 +1,34 @@
+SOUTH LAMAR FAMILY MEDICINE — PATIENT INTAKE FORM
+
+Date: 03/14/2026
+Patient Name: Sofia M. Reyes
+DOB: 06/12/1992
+Address: 1234 South Lamar Blvd, Apt 26B, Austin, TX 78704
+Email: sofia.reyes@example.com
+Phone: (512) 555-0142
+Occupation: Software engineer
+MRN: 4581723
+Insurance: Member ID: BCBSTX8472301, Group: ABC123456
+
+CHIEF CONCERN
+Annual physical. Patient reports occasional fatigue, requests update on chronic conditions.
+
+PROBLEM LIST
+- Type 2 diabetes (diagnosed 2018, controlled)
+- Mild depression (diagnosed 2021, improving)
+- Hyperlipidemia
+
+CURRENT MEDICATIONS
+- Metformin 500 mg, twice daily
+- Sertraline 50 mg, once daily
+- Atorvastatin 10 mg, once at bedtime
+
+ALLERGIES
+- Penicillin (rash)
+- Sulfa drugs (urticaria)
+
+FAMILY HISTORY
+Father: Type 2 diabetes, hypertension. Mother: breast cancer.
+
+PHYSICIAN ACKNOWLEDGMENT
+Reviewed and signed by Dr. James Whitaker, MD on 03/14/2026.

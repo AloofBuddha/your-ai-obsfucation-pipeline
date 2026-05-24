@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Secure Context Pipeline — Implementation Plan</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --surface: #f3f0e8;
+    --text: #1a1a1a;
+    --muted: #5c5852;
+    --border: #d4d0c4;
+    --accent: #b85450;
+    --accent-soft: #f5e6e3;
+    --code-bg: #2a2825;
+    --code-text: #e8e4d8;
+    --good: #2d6e3e;
+    --bad: #b85450;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--bg);
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 56px 96px;
+  }
+  header { border-bottom: 2px solid var(--text); padding-bottom: 24px; margin-bottom: 40px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 32px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-family: Georgia, serif; font-size: 22px; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-family: Georgia, serif; font-size: 17px; margin: 28px 0 12px; color: var(--text); }
+  h4 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 20px 0 8px; }
+  p { margin: 12px 0; }
+  ul, ol { margin: 12px 0; padding-left: 24px; }
+  li { margin: 6px 0; }
+  code { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace; font-size: 0.88em; background: var(--surface); padding: 1px 5px; border-radius: 3px; }
+  pre { background: var(--code-bg); color: var(--code-text); padding: 14px 18px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 14px 0; }
+  pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface); font-weight: 600; }
+  tr:hover td { background: rgba(180, 84, 80, 0.03); }
+  .status { display: inline-block; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; background: var(--accent); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 600; }
+  .stack { color: var(--muted); font-size: 14px; margin-top: 12px; }
+  .callout { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 12px 18px; margin: 16px 0; border-radius: 0 4px 4px 0; }
+  .callout-good { background: #e8f0e8; border-left-color: var(--good); }
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px 24px; margin-bottom: 32px; }
+  .toc ol { margin: 4px 0; padding-left: 20px; }
+  .toc a { color: var(--text); text-decoration: none; }
+  .toc a:hover { color: var(--accent); text-decoration: underline; }
+  .key-table th:first-child { width: 24%; }
+  .threat-table th:nth-child(1) { width: 5%; }
+  .threat-table th:nth-child(2) { width: 22%; }
+  .threat-table th:nth-child(3) { width: 33%; }
+  .ascii { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.35; white-space: pre; }
+  .small { font-size: 13px; color: var(--muted); }
+  .check { color: var(--good); font-weight: 700; }
+  .x { color: var(--bad); font-weight: 700; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+  .footnote { font-size: 13px; color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Secure Context Pipeline — Implementation Plan</h1>
+  <p class="status">DRAFT — awaiting review</p>
+  <p class="stack">
+    Backend: Python 3.10+ · FastAPI · Microsoft Presidio · Anthropic SDK · asyncio · SQLite (aiosqlite) · cryptography (Fernet/HMAC) · Tesseract (local OCR for image inputs).<br>
+    Frontend: React + TypeScript · Vite · Tailwind · ShadCN · TanStack Query.<br>
+    Delivery: docker-compose (api + ui services).
+  </p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#threat-model">Threat Model</a></li>
+    <li><a href="#crypto">Key &amp; Crypto Design</a></li>
+    <li><a href="#modules">Module Architecture &amp; Interfaces</a></li>
+    <li><a href="#ui">UI, API &amp; Observability</a></li>
+    <li><a href="#build-order">Build Order</a></li>
+    <li><a href="#tests">Test Coverage Targets</a></li>
+    <li><a href="#not-building">What We Are NOT Building</a></li>
+    <li><a href="#gaps">Known Gaps (README content)</a></li>
+    <li><a href="#open">Open Questions</a></li>
+  </ol>
+</nav>
+
+<!-- =========================================================== -->
+<section id="threat-model">
+<h2>1. Threat Model</h2>
+<p>Adversaries we resist, in priority order. Every design decision below traces back to one of these.</p>
+
+<table class="threat-table">
+  <thead><tr><th>#</th><th>Adversary</th><th>Capability</th><th>Our defense</th></tr></thead>
+  <tbody>
+    <tr><td><strong>A1</strong></td><td>External LLM provider</td><td>Sees outbound payload, logs prompts</td><td>Zero raw PII in payload — only typed tokens or surrogates</td></tr>
+    <tr><td><strong>A2</strong></td><td>Network MITM</td><td>Captures TLS-decrypted traffic at egress</td><td>Same as A1 — payload is PII-free before TLS</td></tr>
+    <tr><td><strong>A3</strong></td><td>Cross-session leakage</td><td>Session B receives a token derived from Session A's data</td><td>Per-session ephemeral vault key; tokens are HMAC outputs of that key</td></tr>
+    <tr><td><strong>A4</strong></td><td>Vault snapshot theft</td><td>Attacker exfiltrates the vault DB file at rest</td><td>Rows encrypted with per-session key; key never written to disk</td></tr>
+    <tr><td><strong>A5</strong></td><td>Audit log inspection</td><td>Compliance auditor or attacker reads the audit log</td><td>Log contains tokens + types + timestamps only — no values, no reversible hashes</td></tr>
+    <tr><td><strong>A6</strong></td><td>Re-identification via correlation</td><td>Adversary has obfuscated doc + LLM response + side knowledge</td><td>Partially mitigated; frequency/co-occurrence leakage documented as known gap</td></tr>
+  </tbody>
+</table>
+
+<div class="callout-good callout">
+  <strong>Hard guarantees (testable in CI):</strong>
+  <ol>
+    <li>The outbound LLM payload contains no substring from the source document's detected entities.</li>
+    <li>If a session vault is destroyed, no token from that session can be reversed by any code path.</li>
+    <li>The audit log, grep'd for any original entity value, returns zero matches.</li>
+  </ol>
+</div>
+</section>
+
+<!-- =========================================================== -->
+<section id="crypto">
+<h2>2. Key &amp; Crypto Design</h2>
+<p>Two keys, two lifetimes — kept minimal to match PRD scope.</p>
+
+<table class="key-table">
+  <thead><tr><th>Key</th><th>Scope</th><th>Lifetime</th><th>Storage</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>User key</strong></td>
+      <td>One per user</td>
+      <td>Persistent</td>
+      <td>32 random bytes, loaded from env var <code>USER_KEY_&lt;user_id&gt;</code> or generated on first user creation and written to <code>.env</code></td>
+    </tr>
+    <tr>
+      <td><strong>Session vault key (SVK)</strong></td>
+      <td>Per session</td>
+      <td>Ephemeral — dies on <code>vault.destroy()</code></td>
+      <td>32 random bytes, generated at session start, in-memory only, never persisted</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>User-key encrypts that user's documents directly (Fernet). SVK encrypts vault rows and feeds the token-derivation HMAC. Per-user isolation is enforced by key isolation: User A's key cannot decrypt User B's documents or vault.</p>
+
+<h4>Token construction</h4>
+<pre><code>token   = "[{TYPE}_{SHORTID}]"           e.g.  [PHI_NAME_k7a2mqpz]
+SHORTID = base32( HMAC-SHA256(SVK, TYPE || canonicalize(value)) )[:8].lower()
+TYPE    = one-or-more uppercase _-separated segments, e.g. PHI_NAME,
+          PHI_INSURANCE_ID, FIN_ACCOUNT_NUMBER, LEGAL_PRIVILEGE</code></pre>
+
+<ul>
+  <li>8 lowercased base32 chars (alphabet <code>a-z2-7</code>, RFC 4648) = 40 bits — collision probability across 10k entities in a session is negligible.</li>
+  <li><strong>Deterministic within session</strong> (same SVK + same value → same token) → satisfies "same entity in same session maps to same token."</li>
+  <li><strong>Non-deterministic across sessions</strong> (different SVK → different SHORTID for same value) → satisfies "irreversible across sessions" <em>cryptographically</em>, not just by policy.</li>
+  <li>HMAC one-way: token alone reveals nothing. Even with SVK, an adversary must guess the value to verify it — no offline reversal.</li>
+  <li>Vault row stores <code>Fernet(SVK).encrypt(value)</code> keyed by token. SVK dies on logout → row ciphertext is unrecoverable.</li>
+  <li>Grammar matches the deobfuscation regex in §3.6 (<code>\[[A-Z]+(_[A-Z]+)+_[a-z2-7]{8}\]</code>) — verified by a roundtrip property test.</li>
+</ul>
+
+<p><strong>Crypto primitives:</strong> <code>cryptography</code> library only — Fernet for symmetric AEAD, HMAC-SHA256 for token derivation. No KDF, no key wrapping, no hand-rolled crypto.</p>
+</section>
+
+<!-- =========================================================== -->
+<section id="modules">
+<h2>3. Module Architecture &amp; Interfaces</h2>
+<p>Strict layering — arrows point "depends on":</p>
+
+<pre class="ascii">          
+          ┌────────────┐
+          │  UI (React) │
+          └──────┬──────┘
+                 ▼
+          ┌───────────────┐
+          │ api (FastAPI) │
+          └──────┬────────┘
+                 ▼
+          ┌───────────────────────────────────────────┐
+          │     pipeline  │   (orchestrator — async)  │
+          └─┬─────┬────────┬──────────────┬─────────┬─┘
+            │     │        │              │         └──┐
+            ▼     ▼        ▼              ▼            ▼
+       ┌──────┐┌──────┐┌───────────┐┌────────────┐┌────────────┐
+       │store ││detect││obfuscation││deobfuscate ││ llm_client │
+       └──┬───┘└──┬───┘└────┬──────┘└─────┬──────┘└────┬───────┘
+          │       │         │             │            │
+          │       │         ▼             ▼            │
+          │       │       ┌────────────────┐           │
+          │       │       │     vault      │           │
+          │       │       └────────┬───────┘           │
+          │       │                │                   │
+          ▼       ▼                ▼                   ▼
+       ┌──────────────────────────────────────────────────┐
+       │                     audit                        │ 
+       └──────────────────────────────────────────────────┘</pre>
+
+<h3>3.1 <code>audit/</code> — append-only event log</h3>
+<pre><code>class AuditEvent(BaseModel):
+    timestamp: datetime
+    session_id: str
+    action: Literal["OBFUSCATE", "DEOBFUSCATE", "VAULT_CREATE",
+                    "VAULT_DESTROY", "LLM_CALL"]
+    entity_type: str | None     # e.g. "PHI_DIAGNOSIS"
+    token_id: str | None        # the token, never the value
+    metadata: dict[str, Any]    # byte counts, model name — never values
+
+class AuditLog(Protocol):
+    async def emit(self, event: AuditEvent) -> None: ...</code></pre>
+<p>Async writes to JSONL file (stdout in dev). Pydantic validator <strong>recursively rejects</strong> any field name (top-level or nested in <code>metadata</code>) containing <code>value</code>, <code>original</code>, or <code>plaintext</code> — closes the escape-hatch where a caller could write <code>metadata={"original_value": "..."}</code>. <code>metadata</code> values restricted to numeric/boolean/short-string scalars (no nested dicts or lists), enforced at write time.</p>
+
+<h3>3.2 <code>vault/</code> — session-scoped token ↔ value mapping</h3>
+<pre><code>class Vault(Protocol):
+    session_id: str
+
+    async def store(self, entity_type: str, value: str) -> str:
+        """Idempotent: same value → same token within session."""
+
+    async def lookup(self, token: str) -> str | None:
+        """Returns original value or None if token not in vault."""
+
+    async def destroy(self) -> None:
+        """Wipe all session data. Subsequent lookups MUST fail."""</code></pre>
+<p>SQLite (aiosqlite), one row per <code>(session_id, token)</code>, value column is Fernet ciphertext. Token-from-value derivation uses HMAC (no reverse index) — preserves the security property. Lookup direction <code>token → value</code> hits the SQLite index and is the path measured by the <code>&lt; 5ms</code> perf test in §6.</p>
+
+<p><strong>Orphan cleanup:</strong> if the API process crashes between sessions, vault rows persist on disk but are cryptographically unreadable (SVK was in-memory only — that's by design). On startup, the API sweeps any row whose <code>session_id</code> is not in the active sessions table and deletes it. Documented behavior, not a leak.</p>
+
+<h3>3.3 <code>detection/</code> — entity recognition</h3>
+<pre><code>class Entity(BaseModel):
+    type: str          # "PHI_DIAGNOSIS", "PII_SSN", etc.
+    text: str
+    start: int
+    end: int
+    confidence: float  # 0..1
+
+class Detector(Protocol):
+    async def detect(self, text: str) -> list[Entity]: ...</code></pre>
+<p>Presidio <code>AnalyzerEngine</code> wrapped in <code>asyncio.to_thread</code>. Built-in recognizers cover NAME/SSN/DOB/EMAIL/PHONE/ADDRESS. Custom recognizers for the rest:</p>
+
+<table>
+  <thead><tr><th>Entity type</th><th>Recognizer</th></tr></thead>
+  <tbody>
+    <tr><td><code>PHI_DIAGNOSIS</code></td><td>Dictionary of common condition terms + ICD-10-code regex</td></tr>
+    <tr><td><code>PHI_MEDICATION</code></td><td>Dictionary of drug names + dosage regex <code>\d+\s?(mg|mL|mcg)</code></td></tr>
+    <tr><td><code>PHI_MRN</code></td><td><code>\bMRN[:\s#]*\d{6,10}\b</code></td></tr>
+    <tr><td><code>PHI_INSURANCE_ID</code></td><td>Common insurer prefix patterns</td></tr>
+    <tr><td><code>FIN_ACCOUNT_NUMBER</code></td><td>Luhn-validated 13–19 digit sequences</td></tr>
+    <tr><td><code>FIN_TAX_ID</code></td><td>EIN regex + SSN format via built-in</td></tr>
+    <tr><td><code>LEGAL_PRIVILEGE</code></td><td>Header phrases: "ATTORNEY-CLIENT PRIVILEGED", "WORK PRODUCT", "CONFIDENTIAL — LEGAL"</td></tr>
+  </tbody>
+</table>
+
+<p>Custom recognizers live in <code>detection/recognizers/</code> — each is a Presidio <code>PatternRecognizer</code> registered via one line in <code>detection/__init__.py</code>. Adding <code>PASSPORT_NUMBER</code> = one new file + one registration line, zero changes elsewhere. Meets PRD's extensibility NFR.</p>
+
+<p><strong>Confidence threshold:</strong> configurable per-entity-type (default 0.6). Entities below threshold → fully redacted as <code>[REDACTED_{TYPE}]</code> per PRD's graceful degradation NFR.</p>
+
+<h3>3.4 <code>obfuscation/strategies/</code> — Strategy pattern</h3>
+<pre><code>class ObfuscationStrategy(ABC):
+    @abstractmethod
+    async def replace(self, entity: Entity, vault: Vault) -> str:
+        """Return the replacement string and register it in the vault."""
+
+class TokenizationStrategy(ObfuscationStrategy):
+    """Produces [TYPE_HASH] opaque tokens. Vault maps token → original."""
+
+class PseudonymizationStrategy(ObfuscationStrategy):
+    """Produces realistic surrogates (Faker, type-aware). Vault maps surrogate → original."""</code></pre>
+<p>Shared <strong>abstract base class</strong> per PRD: "obfuscation strategies implement a shared base class — adding a new strategy touches zero harness code." Strategy selected at session start via <code>OBFUSCATION_STRATEGY</code> env var → meets "strategy swappability via config" NFR. Adding a new strategy = new file + one line in the factory. Zero changes to vault, detection, engine, or pipeline.</p>
+
+<h3>3.5 <code>obfuscation/engine.py</code> — orchestrator</h3>
+<pre><code>class ObfuscationEngine:
+    def __init__(self, detector: Detector, strategy: ObfuscationStrategy,
+                 vault: Vault, audit: AuditLog): ...
+
+    async def obfuscate(self, text: str) -> str:
+        """Detect → for each entity, apply strategy → splice back into text."""</code></pre>
+<p>Spans replaced right-to-left so offsets stay valid. Emits one audit event per entity.</p>
+
+<h3>3.6 <code>deobfuscation/</code> — response token restoration</h3>
+<p>PRD Core Req #6 mandates detecting "all token references <strong>including paraphrased / grammatically inflected forms</strong>." Two restoration paths, one per strategy:</p>
+
+<h4>Tokenization restoration</h4>
+<pre><code>TOKEN_RE = re.compile(r"\[[A-Z]+(?:_[A-Z]+)+_[a-z2-7]{8}\]")
+# Matches [PHI_NAME_k7a2mqpz], [PHI_INSURANCE_ID_p3hxk5n7], [LEGAL_PRIVILEGE_a4...].
+# Survives trailing punctuation because the regex doesn't anchor to what follows:
+# "[PHI_NAME_k7a2mqpz]'s" still extracts the bracketed token cleanly.</code></pre>
+<p>Each match → vault lookup → replace. Token not in vault (e.g. destroyed session) → emit audit event + leave <code>[UNRESOLVED_TOKEN]</code> in output.</p>
+
+<h4>Pseudonymization restoration</h4>
+<p>Surrogates ARE the form the LLM saw, and the LLM will inflect them like real words ("Torres's appointment," "the Torres family"). Restoration:</p>
+<ol>
+  <li>Build a per-session reverse map <code>{surrogate → original}</code> from the vault.</li>
+  <li>For each surrogate, compile a regex with <code>\b</code> word boundaries that tolerates trailing <code>'s</code>, <code>s</code>, punctuation.</li>
+  <li>Apply longest-surrogate-first to avoid partial matches ("Michael Torres" before "Michael").</li>
+</ol>
+
+<div class="callout">
+  <strong>Hard post-condition:</strong> a final pass asserts no <code>TOKEN_RE</code> match remains in the user-facing output. If one does, the pipeline raises rather than leak a token. Maps directly to PRD's "no tokens leak to user output."
+</div>
+
+<h3>3.7 <code>store/</code> — encrypted document storage</h3>
+<pre><code>class DocumentStore(Protocol):
+    async def put(self, user_id: str, doc_id: str,
+                  content: bytes, *, filename: str) -> None: ...
+    async def get_text(self, user_id: str, doc_id: str) -> str: ...</code></pre>
+<p>Filesystem-backed under <code>./data/&lt;user_id&gt;/&lt;doc_id&gt;.enc</code>. Each file is <code>Fernet(user_key).encrypt(raw_bytes)</code>. User isolation enforced by key AND by path scoping. <code>aiofiles</code> for non-blocking I/O.</p>
+
+<p><strong>Supported formats:</strong> TXT, DOCX, PDF (PRD Core Req #1) plus PNG, JPG (added per architect — scanned intake forms / lab results are a primary real-world input). Parser dispatched by filename suffix on <code>get_text</code>:</p>
+<ul>
+  <li><code>.txt</code> → decode utf-8</li>
+  <li><code>.docx</code> → <code>python-docx</code></li>
+  <li><code>.pdf</code> → <code>pypdf</code>; if text extraction yields empty/sparse output, fall back to per-page rasterize (<code>pdf2image</code>) + OCR</li>
+  <li><code>.png</code> / <code>.jpg</code> / <code>.jpeg</code> → Tesseract OCR via <code>pytesseract</code></li>
+</ul>
+
+<div class="callout">
+  <strong>OCR must be local.</strong> Cloud OCR services (AWS Textract, Google Vision, Anthropic Vision) all require sending the unredacted image to an external service — that violates threat model A1 (external provider must never see raw PII). Tesseract runs entirely in-process; no PII leaves the box. Documented limitation: Tesseract is strong on printed/typed text, weak on handwriting — README will note this honestly.
+</div>
+
+<p>System dependencies (added to docker-compose api service): <code>tesseract-ocr</code>, <code>poppler-utils</code> (for <code>pdf2image</code>). Parsing is sync; wrapped in <code>asyncio.to_thread</code> to keep the pipeline non-blocking.</p>
+
+<h3>3.8 <code>pipeline/</code> — end-to-end orchestrator</h3>
+<pre><code>class Pipeline:
+    async def run(self, user_id: str, doc_id: str, user_query: str) -> PipelineResult:
+        """Load doc → obfuscate → call LLM → restore → return."""
+
+class PipelineResult(BaseModel):
+    detected_entities: list[Entity]      # for UI display
+    obfuscated_text: str                 # what was sent to the LLM
+    llm_response_raw: str                # response containing tokens/surrogates
+    restored_text: str                   # final user-facing text
+    audit_event_ids: list[str]           # for traceability in UI</code></pre>
+<p>Returning the intermediate stages lets the UI show the full pipeline visually. None of the intermediates contain raw PII <em>outside the local process boundary</em> — the request never leaves the user's session.</p>
+
+<p>Session lifecycle: <code>start_session(user_id)</code> → generates SVK, creates vault. <code>pipeline.run(...)</code> uses that session's vault. <code>end_session()</code> → <code>vault.destroy()</code> + drops SVK from memory.</p>
+
+<h3>3.9 LLM client — Anthropic, async</h3>
+<p>Thin wrapper around <code>anthropic.AsyncAnthropic</code>. Default model <code>claude-sonnet-4-6</code>, configurable via env. System prompt asserts that bracketed tokens represent redacted entities and must be preserved verbatim in the response.</p>
+</section>
+
+<!-- =========================================================== -->
+<section id="ui">
+<h2>4. UI, API &amp; Observability</h2>
+<p>Not in PRD core requirements but needed to demo the pipeline visually.</p>
+
+<h3>4.1 <code>api/</code> — FastAPI HTTP layer</h3>
+<p>Thin async wrapper around the pipeline. Holds session state in-process (single-instance; HA is out of scope per §7).</p>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /sessions</code></td><td>Body: <code>{user_id, strategy}</code>. Creates session + vault, returns <code>session_id</code>.</td></tr>
+    <tr><td><code>DELETE /sessions/{id}</code></td><td>Destroys vault, drops SVK. Audit-logged.</td></tr>
+    <tr><td><code>POST /sessions/{id}/documents</code></td><td>Multipart upload (txt/docx/pdf). Returns <code>doc_id</code>.</td></tr>
+    <tr><td><code>POST /sessions/{id}/pipeline</code></td><td>Body: <code>{doc_id, user_query}</code>. Returns <code>PipelineResult</code> with all 4 stages for UI display.</td></tr>
+    <tr><td><code>GET /sessions/{id}/audit</code></td><td>List audit events for this session (tokens + types only, never values).</td></tr>
+  </tbody>
+</table>
+<p class="small">A "vault stats" endpoint (counts by entity type) was considered and dropped: combined with the obfuscated payload visible in panel 3, exposing aggregate counts creates a confirm-by-presence side channel. The UI counts entity types directly from the tokens already present in the obfuscated text.</p>
+
+<p>CORS enabled for the UI origin only. Each handler is async; errors map to typed problem-detail JSON.</p>
+
+<h3>4.2 <code>ui/</code> — React + TypeScript + Vite</h3>
+<p>Single-page demo with <strong>two view modes</strong>:</p>
+<ul>
+  <li><strong>Dev mode (default ON):</strong> the four-panel pipeline visualization — source → detected entities → obfuscated payload → LLM response → restored. This is the whole point of the demo: making the security properties visible to a reviewer.</li>
+  <li><strong>User mode (<code>?dev=false</code> query string):</strong> clean chat-style view — just upload, query input, and the restored response. Demonstrates that the production UX hides the pipeline machinery entirely.</li>
+</ul>
+<p>Same API and same backend behavior in both modes — the toggle only affects rendering. The API always returns the full <code>PipelineResult</code>; the UI decides what to render.</p>
+<p><strong>No router, no Zustand</strong> — TanStack Query alone manages server state; React's <code>useState</code> handles ephemeral UI state (current document, strategy toggle, dev/user mode). Per the "YAGNI until the third occurrence" principle.</p>
+
+<h4>Pages / layout (dev mode)</h4>
+<p>One page, four panels in a 2×2 grid plus a session sidebar:</p>
+
+<pre class="ascii">┌──────────────────────────────────────────────────────────────────┐
+│  [Session sidebar]                                               │
+│  user_id: demo_user                                              │
+│  strategy: ● tokenize  ○ pseudonymize                            │
+│  [Start session]  [End session]                                  │
+│  ───────────────                                                 │
+│  Audit log (live):                                               │
+│    [09:14:22] OBFUSCATE  PHI_NAME  [PHI_NAME_k7a2…]              │
+│    [09:14:22] OBFUSCATE  PII_SSN   [PII_SSN_p4nq…]               │
+│    [09:14:23] LLM_CALL                                           │
+└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────┬────────────────────────────────────┐
+│ 1. Source document          │ 2. Detected entities               │
+│ ─────────────               │ ─────────────                      │
+│ [drop zone / upload]        │ John Smith (PHI_NAME, 0.99)        │
+│ … document text with        │ 123-45-6789 (PII_SSN, 0.95)        │
+│ highlighted spans …         │ Type 2 diabetes (PHI_DIAGNOSIS,    │
+│                             │   0.81)                            │
+├─────────────────────────────┼────────────────────────────────────┤
+│ 3. Obfuscated payload       │ 4. LLM response → restored         │
+│ ─────────────               │ ─────────────                      │
+│ "Summarize this record for  │ ↓ raw (toggle):                    │
+│ [PHI_NAME_k7a2m9pq], a      │ "[PHI_NAME_k7a2m9pq] has a         │
+│ patient with                │  history of [PHI_DIAGNOSIS_…]"     │
+│ [PHI_DIAGNOSIS_p9qx…]"      │ ↓ restored (default):              │
+│                             │ "John Smith has a history of       │
+│ [→ Send to LLM]             │  Type 2 diabetes"                  │
+└─────────────────────────────┴────────────────────────────────────┘</pre>
+
+<p>Each panel is a ShadCN <code>Card</code>. Entity spans in panel 1 are color-coded by type. Panel 4 has a toggle showing the raw response (proves the LLM only saw tokens) vs. the restored response.</p>
+
+<h4>Component stack (per global CLAUDE.md)</h4>
+<ul>
+  <li><strong>Vite + React + TS</strong> — minimal setup.</li>
+  <li><strong>Tailwind</strong> — styling.</li>
+  <li><strong>ShadCN UI</strong> — <code>Card</code>, <code>Button</code>, <code>Badge</code>, <code>Textarea</code>, <code>Tabs</code>, <code>ScrollArea</code>, <code>Switch</code>. Used directly, no wrapper components.</li>
+  <li><strong>TanStack Query</strong> — all API calls. Audit log uses polling (5s) for the demo; could upgrade to SSE later if asked.</li>
+  <li><strong>No router</strong> — single page.</li>
+  <li><strong>No Zustand</strong> — only ephemeral UI state (current document, strategy toggle); React's <code>useState</code> + Query cache is enough.</li>
+</ul>
+
+<h4>What the UI proves to a reviewer</h4>
+<ol>
+  <li><em>Detection works</em> — panel 2 lists detected spans with type + confidence.</li>
+  <li><em>Obfuscation works</em> — panel 3 shows the exact bytes sent to the LLM, manually inspectable for any leaked PII.</li>
+  <li><em>Restoration works</em> — panel 4 toggle proves the LLM only saw tokens but the user sees originals.</li>
+  <li><em>Audit purity</em> — live audit log in sidebar contains only token IDs and types.</li>
+  <li><em>Session isolation</em> — "End session" wipes the vault; uploading the same doc in a new session produces different tokens.</li>
+</ol>
+
+<h3>4.3 Observability — optional LangSmith integration</h3>
+<p>Independent verification of "zero PII in transit" beyond our own panel 3. When <code>LANGSMITH_TRACING=true</code> and <code>LANGSMITH_API_KEY</code> are set in env, the Anthropic async client is wrapped to emit traces to LangSmith. A reviewer can open the LangSmith UI and inspect the exact request/response bytes the provider saw — and confirm independently that no original PII appears.</p>
+
+<p>Implementation: thin wrapper in <code>llm_client/tracing.py</code>. If tracing is disabled or the API key is unset, the wrapper is a no-op (no SDK import, no overhead). Trade-off documented: enabling LangSmith routes (already-obfuscated) prompts through a third-party service — fine for verification of the security guarantee, but disclosed in README.</p>
+</section>
+
+<!-- =========================================================== -->
+<section id="build-order">
+<h2>5. Build Order</h2>
+<p>Sequenced for clean dependency flow — each step compiles &amp; tests cleanly before the next:</p>
+
+<ol>
+  <li><strong>Project scaffold</strong> — <code>pyproject.toml</code>, directory tree, <code>.env.example</code>, <code>docker-compose.yml</code> (api + ui), pytest config, ruff/mypy config.</li>
+  <li><strong><code>audit/</code></strong> — pydantic event model + JSONL writer + tests asserting no-value-leakage.</li>
+  <li><strong><code>vault/</code></strong> — SQLite schema, HMAC token derivation, Fernet row encryption, session lifecycle, cross-session isolation tests.</li>
+  <li><strong><code>detection/</code></strong> — Presidio wrapper, custom recognizers, confidence threshold, tests on fixture text.</li>
+  <li><strong><code>obfuscation/strategies/</code></strong> — Tokenization + Pseudonymization implementing the ABC.</li>
+  <li><strong><code>obfuscation/engine.py</code></strong> — splicing logic, right-to-left replacement, audit emission.</li>
+  <li><strong><code>store/</code></strong> — encrypted doc store + TXT/PDF/DOCX extraction.</li>
+  <li><strong>LLM client</strong> — async Anthropic wrapper + echo-mock for tests.</li>
+  <li><strong><code>deobfuscation/</code></strong> — token regex + vault lookup + restoration for both strategies.</li>
+  <li><strong><code>pipeline/</code></strong> — session manager + end-to-end orchestrator returning <code>PipelineResult</code>.</li>
+  <li><strong><code>api/</code></strong> — FastAPI handlers wrapping the pipeline.</li>
+  <li><strong><code>ui/</code></strong> — Vite/React app with the four-panel layout.</li>
+  <li><strong><code>demo.py</code></strong> — CLI alternative to the UI for headless demo. Runs the full flow on a bundled fixture.</li>
+  <li><strong>Integration tests</strong> — all PRD success criteria automated.</li>
+  <li><strong>README</strong> — threat model, design rationale, tokenization vs pseudonymization comparison, known gaps, "next day" list.</li>
+</ol>
+
+<p class="small">Each step has unit tests written alongside the code, not after. We do not move to step N+1 until step N's tests are green and mypy/ruff are clean.</p>
+</section>
+
+<!-- =========================================================== -->
+<section id="tests">
+<h2>6. Test Coverage Targets</h2>
+<p>Each PRD requirement maps to a named test. No test exists for coverage; each represents a way the system could plausibly break.</p>
+
+<h4>PRD §Code Quality required tests</h4>
+<table>
+  <thead><tr><th>Test</th><th>Asserts</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_happy_path_end_to_end</code></td><td>Fixture doc with every PRD entity type → pipeline runs → restored output matches expected.</td></tr>
+    <tr><td><code>test_entity_below_confidence_threshold</code></td><td>Novel entity below threshold → <code>[REDACTED_TYPE]</code>, original never in outbound payload.</td></tr>
+    <tr><td><code>test_vault_miss_on_deobfuscation</code></td><td>LLM response containing a foreign token → <code>[UNRESOLVED_TOKEN]</code>, audit event emitted, no crash.</td></tr>
+    <tr><td><code>test_expired_session</code></td><td><code>pipeline.run()</code> after <code>vault.destroy()</code> → raises <code>SessionExpiredError</code>.</td></tr>
+    <tr><td><code>test_concurrent_session_isolation</code></td><td>Two simultaneous sessions, same user, same input → tokens differ; Session A's vault lookup with Session B's token → <code>None</code>.</td></tr>
+  </tbody>
+</table>
+
+<h4>PRD §Functional Must-Haves tests</h4>
+<table>
+  <thead><tr><th>Test</th><th>Asserts</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_doc_encrypted_at_rest</code></td><td>Raw bytes on disk do not contain any plaintext from input.</td></tr>
+    <tr><td><code>test_cross_user_decrypt_fails</code></td><td>User B's key cannot decrypt User A's stored doc.</td></tr>
+    <tr><td><code>test_outbound_payload_zero_pii</code></td><td>Captured outbound LLM request body contains no substring from any detected source entity.</td></tr>
+    <tr><td><code>test_audit_log_purity</code></td><td>After full pipeline run, audit JSONL grep'd for any source-doc entity value → zero matches.</td></tr>
+    <tr><td><code>test_session_destroy_irreversible</code></td><td>After <code>vault.destroy()</code>, subsequent <code>vault.lookup(any_token)</code> → <code>None</code>; ciphertext gone from disk.</td></tr>
+  </tbody>
+</table>
+
+<h4>PRD §Performance Benchmarks (timing assertions)</h4>
+<table>
+  <thead><tr><th>Test</th><th>Threshold</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_perf_full_pipeline_2000_words</code></td><td>&lt; 15s on a 2000-word fixture (LLM mocked for timing isolation; real LLM in separate functional test).</td></tr>
+    <tr><td><code>test_perf_obfuscation_alone_2000_words</code></td><td>&lt; 2s</td></tr>
+    <tr><td><code>test_perf_vault_lookup</code></td><td>&lt; 5ms per token (1000-row vault, measured on the <code>token → value</code> path — the PRD's "vault lookup for token re-identification")</td></tr>
+    <tr><td><code>test_perf_deobfuscation_500_tokens</code></td><td>&lt; 500ms</td></tr>
+    <tr><td><code>test_zero_pii_leakage_100_runs</code></td><td>Parameterized over 100 generated fixture docs; each outbound payload contains zero source-entity substrings. Test also asserts <code>len(detected_entities) == len(planted_entities)</code> per fixture, so the leakage check can't pass vacuously when Presidio fails to detect.</td></tr>
+  </tbody>
+</table>
+
+<p class="small">Fixture generation: <code>fixtures/generator.py</code> produces randomized documents using Faker for each entity type, varying length and density.</p>
+</section>
+
+<!-- =========================================================== -->
+<section id="not-building">
+<h2>7. What We Are NOT Building (scope guard)</h2>
+<p>Out of MVP. Any of these requires a fresh decision from the architect:</p>
+<ul>
+  <li><strong>User authentication</strong> — <code>user_id</code> is a string passed into the API. PRD does not require auth.</li>
+  <li><strong>Cloud storage</strong> (S3, MinIO, GCS) — PRD labels optional; local filesystem only.</li>
+  <li><strong>KMS integration</strong> (AWS, GCP) — PRD allows mocks; env-var keys.</li>
+  <li><strong>SQLCipher</strong> — PRD allows "SQLite + SQLCipher OR encrypted file store." Per-row Fernet on plain SQLite satisfies "vault entries encrypted" with fewer deps.</li>
+  <li><strong>LLM-based entity detection</strong> — PRD allows it; we picked Presidio. No fallback hop.</li>
+  <li><strong>Co-reference resolution</strong> — README known gap.</li>
+  <li><strong>Handwriting OCR</strong> — Tesseract handles printed/typed text only. Documents with handwritten fields are not in scope.</li>
+  <li><strong>Multi-language detection</strong> — Presidio English-only.</li>
+  <li><strong>High-availability vault</strong> (replication, multi-instance) — single SQLite file is the MVP.</li>
+  <li><strong>Auth on the UI</strong> — single-user demo, no login screen.</li>
+  <li><strong>Persistent UI state</strong> — refreshing the page can reset the session view; the vault stays alive server-side until <code>DELETE /sessions/{id}</code>.</li>
+</ul>
+</section>
+
+<!-- =========================================================== -->
+<section id="gaps">
+<h2>8. Known Gaps (will be documented in README per PRD §README requirements)</h2>
+<ul>
+  <li><strong>Co-reference</strong> — LLM-produced indirect references ("the patient," "this individual") aren't restored because they were never tokenized. Live-review Q2 territory.</li>
+  <li><strong>Frequency analysis on pseudonymized output</strong> — adversary with both obfuscated doc and response can count surrogate occurrences and infer entity importance. Live-review Q3 territory.</li>
+  <li><strong>Vault key in memory</strong> — SVK is in process memory; an attacker with memory-read access defeats the scheme. Production needs HSM or KMS-resident keys.</li>
+  <li><strong>Pseudonymization inflection edge cases</strong> — the per-surrogate regex handles trailing <code>'s</code> / <code>s</code> / punctuation, but pluralization that mutates the surrogate ("the Torreses"), lowercased mid-sentence ("torres"), or possessive-without-s ("Torres'") will not restore. Tokenization is unaffected.</li>
+  <li><strong>Vault lookup timing side-channel</strong> — hit vs miss timing on SQLite is measurable; an attacker with API access could probe for token existence. Production: constant-time lookup or rate limiting.</li>
+  <li><strong>Handwriting OCR, multi-language, vault HA</strong> — see §7.</li>
+</ul>
+</section>
+
+<!-- =========================================================== -->
+<section id="open">
+<h2>9. Open Questions for the Architect</h2>
+<p>All resolved. See <code>SPRINT.html</code> decision log for the resolutions.</p>
+<ul>
+  <li>✓ <strong>Fixtures — fully synthetic, no borrowed real-world docs.</strong> One authored text source per use case; <code>tests/fixtures/build.py</code> renders each source into all required formats (txt / docx / pdf / png) so every parser path is exercised by realistic-looking content.
+    <ul>
+      <li><em>Medical (PHI):</em> patient intake form + lab results — rendered to <code>.txt</code>, <code>.docx</code>, <code>.pdf</code>, and <code>.png</code> (PIL-rendered scan-style image to exercise OCR). Exercises NAME, DOB, ADDRESS, EMAIL, PHONE, DIAGNOSIS, MEDICATION, MRN, INSURANCE_ID.</li>
+      <li><em>Legal (privilege):</em> attorney work-product memo — rendered to <code>.docx</code> and <code>.pdf</code>. Exercises LEGAL_PRIVILEGE markers, names, addresses.</li>
+      <li><em>Financial PII:</em> brokerage/tax statement — rendered to <code>.pdf</code>. Exercises FIN_ACCOUNT_NUMBER, FIN_TAX_ID, SSN, names.</li>
+      <li><em>Randomized:</em> Faker-driven generator producing 100 varied docs for the zero-leakage stress test. Tags each planted entity so the test can assert <code>detected == planted</code>.</li>
+    </ul>
+  </li>
+  <li>✓ <strong>Demo "prompt":</strong> obsoleted by the UI. Users type their own query; <code>demo.py</code> uses a sensible default ("Summarize this document and flag anything that warrants follow-up").</li>
+  <li>✓ <strong>Anthropic key:</strong> real key in <code>.env</code> (gitignored).</li>
+  <li>✓ <strong>Observability:</strong> dev-mode UI panels by default, optional LangSmith via env var.</li>
+  <li>✓ <strong>Git remotes:</strong> <code>origin</code> on labs.gauntletai.com, <code>github</code> on github.com — both private, no commits yet.</li>
+</ul>
+</section>
+
+</body>
+</html>

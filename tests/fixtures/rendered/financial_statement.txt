@@ -1,0 +1,24 @@
+QUARTERLY ACCOUNT STATEMENT
+Pinnacle Wealth Management
+Client Name: Sofia M. Reyes
+SSN: 529-99-0001
+Account Number: 4111 1111 1111 1111
+Federal Tax ID (EIN): 12-3456789
+Statement Period: 01/01/2026 — 03/31/2026
+Address on file: 1234 South Lamar Blvd, Apt 26B, Austin, TX 78704
+Contact: sofia.reyes@example.com — (512) 555-0142
+
+ACCOUNT SUMMARY
+Opening Balance:                                 $84,250.13
+Deposits & Credits:                              $12,400.00
+Withdrawals & Debits:                             $7,580.42
+Investment Gains:                                 $3,128.55
+Closing Balance:                                 $92,198.26
+
+NOTABLE TRANSACTIONS
+01/12/2026  Wire transfer to acct 5500 0000 0000 0004   -$3,500.00
+02/03/2026  ACH deposit from Employer Inc.              +$8,200.00
+03/22/2026  Dividend reinvestment, AAPL                 +$1,127.83
+
+Advisor: Marcus T. Williams, CFA
+Advisor email: m.williams@pinnaclewealth.com
