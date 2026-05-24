@@ -1,0 +1,36 @@
+app = "aloof-secure-context-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  API_HOST = "0.0.0.0"
+  API_PORT = "8000"
+  AUDIT_PATH = "/app/data/audit.jsonl"
+  CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://ui-sigma-wine.vercel.app,https://ui-5u9u79lpn-aloofbuddhas-projects.vercel.app"
+  DATA_DIR = "/app/data"
+  DETECTION_CONFIDENCE_THRESHOLD = "0.6"
+  LANGSMITH_ENDPOINT = "https://api.smith.langchain.com/"
+  LANGSMITH_PROJECT = "secure-context-pipeline"
+  LANGSMITH_TRACING = "true"
+  OBFUSCATION_STRATEGY = "tokenize"
+  USER_KEYS_PATH = "/app/data/user_keys.json"
+  VAULT_DB_PATH = "/app/data/vault.db"
+
+[mounts]
+  source = "secure_context_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 1
