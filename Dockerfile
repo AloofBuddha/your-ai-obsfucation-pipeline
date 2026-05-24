@@ -11,8 +11,9 @@ RUN pip install --no-cache-dir uv==0.9.21
 
 WORKDIR /app
 
-# Install deps first (cached layer)
-COPY pyproject.toml uv.lock ./
+# Install deps first (cached layer). README is needed because pyproject
+# declares it as package metadata and uv builds the local package.
+COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --no-dev --frozen
 
 # Download spaCy model
