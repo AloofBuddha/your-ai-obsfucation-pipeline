@@ -10,7 +10,7 @@ class StartSessionRequest(BaseModel):
         max_length=128,
         pattern=r"^[A-Za-z0-9_.-]+$",
     )
-    strategy: str = Field(default="tokenize")
+    strategy: str | None = None
 
 
 class StartSessionResponse(BaseModel):

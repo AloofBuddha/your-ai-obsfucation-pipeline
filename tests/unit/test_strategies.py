@@ -144,3 +144,16 @@ async def test_pseudonymization_unknown_type_falls_back(
     )
     # Must not leak the original.
     assert "secret payload" not in replacement
+
+
+async def test_pseudonymization_unknown_type_placeholders_are_unique(
+    session_vault: SessionVault,
+) -> None:
+    strategy = PseudonymizationStrategy()
+
+    first = await strategy.replace(_entity("PII_IP", "192.0.2.1"), session_vault)
+    second = await strategy.replace(_entity("PII_IP", "198.51.100.2"), session_vault)
+
+    assert first != second
+    assert await session_vault.lookup(first) == "192.0.2.1"
+    assert await session_vault.lookup(second) == "198.51.100.2"

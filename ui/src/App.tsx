@@ -10,11 +10,13 @@ import {
   startSession,
   uploadDocument,
 } from './api';
-import { Badge, Button, Card, CodeBlock, Switch } from './components';
+import { Badge, Button, CodeBlock } from './components';
 import { HighlightedText } from './highlight';
 
 const queryClient = new QueryClient();
 type ResponseView = 'rendered' | 'markdown' | 'raw';
+type InspectorView = 'source' | 'entities';
+type TrustView = ResponseView | 'payload';
 
 export default function App() {
   return (
@@ -36,6 +38,8 @@ function useDevMode(): [boolean, (v: boolean) => void] {
 function Page() {
   const [userId, setUserId] = useState('demo_user');
   const [strategy, setStrategy] = useState<Strategy>('tokenize');
+  const [inspectorView, setInspectorView] = useState<InspectorView>('source');
+  const [trustView, setTrustView] = useState<TrustView>('rendered');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
   const [docFilename, setDocFilename] = useState<string | null>(null);
@@ -43,12 +47,16 @@ function Page() {
     'Summarize this document and flag anything that warrants follow-up.',
   );
   const [result, setResult] = useState<PipelineResult | null>(null);
-  const [responseView, setResponseView] = useState<ResponseView>('rendered');
   const [devMode, setDevMode] = useDevMode();
 
   const startMut = useMutation({
     mutationFn: () => startSession(userId, strategy),
-    onSuccess: (r) => setSessionId(r.session_id),
+    onSuccess: (r) => {
+      setSessionId(r.session_id);
+      setResult(null);
+      setDocId(null);
+      setDocFilename(null);
+    },
   });
 
   const uploadMut = useMutation({
@@ -98,9 +106,21 @@ function Page() {
     [uploadMut],
   );
 
+  const auditEvents = audit.data ?? [];
+  const activeError = runMut.error ?? uploadMut.error ?? startMut.error;
+  const canRun = !!sessionId && !!docId && !runMut.isPending;
+
   return (
-    <div className="flex h-screen bg-bg">
-      <Sidebar
+    <div className="flex h-screen flex-col bg-bg text-ink">
+      <Header
+        sessionId={sessionId}
+        docFilename={docFilename}
+        result={result}
+        auditCount={auditEvents.length}
+      />
+
+      <main className="grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 xl:grid-cols-[320px_minmax(0,1fr)_minmax(420px,0.9fr)]">
+        <RunSetup
         userId={userId}
         setUserId={setUserId}
         strategy={strategy}
@@ -108,31 +128,117 @@ function Page() {
         sessionId={sessionId}
         onStart={() => startMut.mutate()}
         onEnd={() => endMut.mutate()}
-        audit={audit.data ?? []}
         devMode={devMode}
         setDevMode={setDevMode}
+          docFilename={docFilename}
+          docId={docId}
+          onFile={onFile}
+          uploading={uploadMut.isPending}
+          query={query}
+          setQuery={setQuery}
+          onRun={() => runMut.mutate()}
+          running={runMut.isPending}
+          canRun={canRun}
+          error={activeError}
       />
-      <Main
+
+        <SourceInspector
+          result={result}
+          inspectorView={inspectorView}
+          setInspectorView={setInspectorView}
+          sessionId={sessionId}
+        />
+
+        <TrustConsole
         devMode={devMode}
-        sessionId={sessionId}
-        docFilename={docFilename}
-        docId={docId}
-        onFile={onFile}
-        uploading={uploadMut.isPending}
-        query={query}
-        setQuery={setQuery}
-        onRun={() => runMut.mutate()}
-        running={runMut.isPending}
         result={result}
-        responseView={responseView}
-        setResponseView={setResponseView}
-        error={runMut.error ?? uploadMut.error ?? startMut.error}
+          trustView={trustView}
+          setTrustView={setTrustView}
+          audit={auditEvents}
       />
+      </main>
     </div>
   );
 }
 
-function Sidebar(props: {
+function Header({
+  sessionId,
+  docFilename,
+  result,
+  auditCount,
+}: {
+  sessionId: string | null;
+  docFilename: string | null;
+  result: PipelineResult | null;
+  auditCount: number;
+}) {
+  const entityCount = result?.detected_entities.length ?? 0;
+  const typeCount = result
+    ? new Set(result.detected_entities.map((entity) => entity.type)).size
+    : 0;
+  return (
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-5">
+      <div>
+        <h1 className="font-serif text-xl leading-none">Secure Context Pipeline</h1>
+        <p className="mt-1 text-xs text-muted">
+          Local vault restoration with an inspectable LLM trust boundary
+        </p>
+      </div>
+      <div className="flex items-center gap-2 text-xs">
+        <StatusPill label="Session" value={sessionId ? sessionId.slice(0, 8) : 'none'} active={!!sessionId} />
+        <StatusPill label="Document" value={docFilename ?? 'none'} active={!!docFilename} />
+        <StatusPill label="Entities" value={`${entityCount}/${typeCount}`} active={entityCount > 0} />
+        <StatusPill label="Audit" value={String(auditCount)} active={auditCount > 0} />
+      </div>
+    </header>
+  );
+}
+
+function StatusPill({
+  label,
+  value,
+  active,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+}) {
+  return (
+    <div className="rounded border border-border bg-bg px-3 py-1.5">
+      <span className="mr-1 text-muted">{label}</span>
+      <span className={active ? 'font-mono text-good' : 'font-mono text-muted'}>{value}</span>
+    </div>
+  );
+}
+
+function Panel({
+  title,
+  subtitle,
+  actions,
+  children,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`flex min-h-0 flex-col rounded border border-border bg-white shadow-sm ${className ?? ''}`}>
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+        <div>
+          <h2 className="font-serif text-base leading-tight">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
+        </div>
+        {actions}
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
+    </section>
+  );
+}
+
+function RunSetup(props: {
   userId: string;
   setUserId: (v: string) => void;
   strategy: Strategy;
@@ -140,18 +246,25 @@ function Sidebar(props: {
   sessionId: string | null;
   onStart: () => void;
   onEnd: () => void;
-  audit: AuditEntry[];
   devMode: boolean;
   setDevMode: (v: boolean) => void;
+  docFilename: string | null;
+  docId: string | null;
+  onFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  uploading: boolean;
+  query: string;
+  setQuery: (v: string) => void;
+  onRun: () => void;
+  running: boolean;
+  canRun: boolean;
+  error: unknown;
 }) {
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-white">
-      <div className="border-b border-border p-4">
-        <h1 className="font-serif text-xl">Secure Context Pipeline</h1>
-        <p className="mt-1 text-xs text-muted">PII obfuscation for external LLMs</p>
-      </div>
-
-      <div className="space-y-3 border-b border-border p-4 text-sm">
+    <Panel
+      title="Run Setup"
+      subtitle="Create a vault-backed session, upload a fixture, then run the prompt."
+    >
+      <div className="space-y-5 text-sm">
         <label className="block">
           <span className="text-xs uppercase tracking-wider text-muted">User</span>
           <input
@@ -159,19 +272,29 @@ function Sidebar(props: {
             value={props.userId}
             onChange={(e) => props.setUserId(e.target.value)}
             disabled={!!props.sessionId}
-            className="mt-1 w-full rounded border border-border bg-bg px-2 py-1 text-sm disabled:bg-surface"
+            className="mt-1 w-full rounded border border-border bg-bg px-3 py-2 text-sm disabled:bg-surface"
           />
         </label>
-        <p className="text-xs text-muted">
-          A session owns the temporary vault key used to restore this run. The UI
-          works with one active session at a time; the API can hold multiple.
-        </p>
-        <div>
+
+        <div className="rounded border border-border bg-bg p-3 text-xs text-muted">
+          A session owns the temporary vault key. Ending it destroys local restoration
+          state for this run.
+        </div>
+
+        <fieldset disabled={!!props.sessionId}>
           <span className="block text-xs uppercase tracking-wider text-muted">Strategy</span>
-          <div className="mt-1 flex gap-3 text-sm">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             {(['tokenize', 'pseudonymize'] as const).map((s) => (
-              <label key={s} className="flex items-center gap-1">
+              <label
+                key={s}
+                className={`cursor-pointer rounded border px-3 py-2 text-center text-xs transition ${
+                  props.strategy === s
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-border bg-white text-muted'
+                } ${props.sessionId ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
                 <input
+                  className="sr-only"
                   type="radio"
                   name="strategy"
                   checked={props.strategy === s}
@@ -182,7 +305,8 @@ function Sidebar(props: {
               </label>
             ))}
           </div>
-        </div>
+        </fieldset>
+
         {!props.sessionId ? (
           <Button onClick={props.onStart} className="w-full">
             Start session
@@ -197,262 +321,303 @@ function Sidebar(props: {
             </Button>
           </div>
         )}
-        <Switch
-          checked={props.devMode}
-          onChange={props.setDevMode}
-          label={
-            <span className="text-xs">
-              Dev mode <span className="text-muted">(?dev=false to hide)</span>
-            </span>
-          }
-        />
-      </div>
 
-      <div className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-surface px-4 py-2">
-          <h2 className="font-serif text-sm">Audit log</h2>
-          <p className="text-[11px] text-muted">live · token IDs only, no values</p>
-        </div>
-        <div className="space-y-1 p-3 font-mono text-[11px]">
-          {props.audit.length === 0 && <p className="text-muted">No events yet.</p>}
-          {props.audit.slice(-30).reverse().map((e, i) => (
-            <div key={i} className="border-b border-border/50 py-1">
-              <span className="text-muted">{new Date(e.timestamp).toLocaleTimeString()}</span>
-              <span className="ml-1 text-accent">{e.action}</span>
-              {e.entity_type && <span className="ml-1 text-muted">{e.entity_type}</span>}
-              {e.token_id && <div className="break-all pl-3 text-ink">{e.token_id}</div>}
-            </div>
-          ))}
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function Main(props: {
-  devMode: boolean;
-  sessionId: string | null;
-  docFilename: string | null;
-  docId: string | null;
-  onFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  uploading: boolean;
-  query: string;
-  setQuery: (v: string) => void;
-  onRun: () => void;
-  running: boolean;
-  result: PipelineResult | null;
-  responseView: ResponseView;
-  setResponseView: (v: ResponseView) => void;
-  error: unknown;
-}) {
-  if (!props.sessionId) {
-    return (
-      <main className="flex-1 p-12">
-        <p className="text-muted">Start a session in the sidebar to begin.</p>
-      </main>
-    );
-  }
-
-  return (
-    <main className="flex-1 overflow-auto p-6">
-      <div className="mb-4 flex flex-wrap items-end gap-4">
-        <label className="flex-1">
-          <span className="block text-xs uppercase tracking-wider text-muted">Document</span>
+        <label className="block">
+          <span className="text-xs uppercase tracking-wider text-muted">Document</span>
           <input
             type="file"
             accept=".txt,.docx,.pdf,.png,.jpg,.jpeg"
             onChange={props.onFile}
-            className="mt-1 block w-full text-sm"
+            disabled={!props.sessionId || props.uploading}
+            className="mt-2 block w-full text-xs file:mr-3 file:rounded file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white disabled:opacity-50"
           />
           {props.docFilename && (
-            <p className="mt-1 text-xs text-muted">
-              uploaded: <span className="text-ink">{props.docFilename}</span> ({props.docId})
+            <p className="mt-2 truncate text-xs text-muted">
+              {props.docFilename} <span className="font-mono">({props.docId})</span>
             </p>
           )}
         </label>
-        <label className="flex-1">
-          <span className="block text-xs uppercase tracking-wider text-muted">Query</span>
-          <input
-            type="text"
+
+        <label className="block">
+          <span className="text-xs uppercase tracking-wider text-muted">Prompt</span>
+          <textarea
             value={props.query}
             onChange={(e) => props.setQuery(e.target.value)}
-            className="mt-1 w-full rounded border border-border bg-white px-2 py-1.5 text-sm"
+            rows={5}
+            className="mt-2 w-full resize-none rounded border border-border bg-bg px-3 py-2 text-sm"
           />
         </label>
-        <Button onClick={props.onRun} disabled={!props.docId || props.running}>
-          {props.running ? 'Running…' : 'Run pipeline →'}
+
+        <Button onClick={props.onRun} disabled={!props.canRun} className="w-full">
+          {props.running ? 'Running pipeline...' : 'Run pipeline'}
         </Button>
-      </div>
 
-      {!!props.error && (
-        <div className="mb-4 rounded border border-accent bg-accent-soft px-4 py-2 text-sm text-accent">
-          {String((props.error as Error).message ?? props.error)}
-        </div>
-      )}
-
-      {!props.result ? (
-        <p className="text-muted">Upload a document and run the pipeline to see results.</p>
-      ) : props.devMode ? (
-        <DevPanels
-          result={props.result}
-          responseView={props.responseView}
-          setResponseView={props.setResponseView}
-        />
-      ) : (
-        <UserPanel
-          result={props.result}
-          responseView={props.responseView}
-          setResponseView={props.setResponseView}
-        />
-      )}
-    </main>
-  );
-}
-
-function UserPanel({
-  result,
-  responseView,
-  setResponseView,
-}: {
-  result: PipelineResult;
-  responseView: ResponseView;
-  setResponseView: (v: ResponseView) => void;
-}) {
-  return (
-    <Card title="Response">
-      <ResponseToolbar
-        responseView={responseView}
-        setResponseView={setResponseView}
-        result={result}
-      />
-      <ResponseContent result={result} responseView={responseView} />
-    </Card>
-  );
-}
-
-function DevPanels({
-  result,
-  responseView,
-  setResponseView,
-}: {
-  result: PipelineResult;
-  responseView: ResponseView;
-  setResponseView: (v: ResponseView) => void;
-}) {
-  const redactions = findRedactions(result.restored_response);
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Card title="Source document" step={1}>
-        <p className="mb-2 text-xs text-muted">
-          Detected entities are color-coded. Hover for type + confidence.
-        </p>
-        <div className="font-mono text-[13px]">
-          <HighlightedText
-            text={result.document_text}
-            entities={result.detected_entities}
+        <label className="flex items-center justify-between rounded border border-border bg-bg px-3 py-2 text-xs">
+          <span className="text-muted">Dev evidence panels</span>
+          <input
+            type="checkbox"
+            checked={props.devMode}
+            onChange={(e) => props.setDevMode(e.target.checked)}
           />
-        </div>
-      </Card>
+        </label>
 
-      <Card title="Detected entities" step={2}>
-        <p className="mb-2 text-xs text-muted">
-          {result.detected_entities.length} entities,{' '}
-          {Array.from(new Set(result.detected_entities.map((e) => e.type))).length} unique types.
-          <span className="ml-1">Percentages are detector confidence scores.</span>
-        </p>
-        <ul className="space-y-1 text-sm">
-          {result.detected_entities.map((e, i) => (
-            <li key={i} className="flex items-center justify-between gap-2 border-b border-border/50 py-1">
-              <span className="truncate font-mono text-[12px]">{e.text}</span>
-              <span className="flex shrink-0 items-center gap-2">
-                <Badge>{e.type}</Badge>
-                <span className="font-mono text-[11px] text-muted">
-                  {(e.confidence * 100).toFixed(0)}%
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card title="Obfuscated payload sent to LLM" step={3}>
-        <p className="mb-2 text-xs text-muted">
-          Strategy: <Badge variant="accent">{result.strategy_name}</Badge>
-          <span className="ml-2">Verify: no original PII present.</span>
-        </p>
-        <CodeBlock className="max-h-72">{result.obfuscated_prompt}</CodeBlock>
-      </Card>
-
-      <Card title="Response (restored)" step={4}>
-        <ResponseToolbar
-          responseView={responseView}
-          setResponseView={setResponseView}
-          result={result}
-        />
-        {redactions.length > 0 && (
-          <div className="mb-3 rounded border border-warn-soft bg-warn-soft px-3 py-2 text-xs text-warn">
-            {redactions.length} redacted placeholder{redactions.length === 1 ? '' : 's'} remain.
-            These markers were not backed by a vault token, so there is no local
-            mapping to restore.
+        {!!props.error && (
+          <div className="rounded border border-accent bg-accent-soft px-3 py-2 text-xs text-accent">
+            {String((props.error as Error).message ?? props.error)}
           </div>
         )}
-        <ResponseContent result={result} responseView={responseView} />
-      </Card>
+      </div>
+    </Panel>
+  );
+}
+
+function SourceInspector({
+  result,
+  inspectorView,
+  setInspectorView,
+  sessionId,
+}: {
+  result: PipelineResult | null;
+  inspectorView: InspectorView;
+  setInspectorView: (v: InspectorView) => void;
+  sessionId: string | null;
+}) {
+  return (
+    <Panel
+      title="Local Inspection"
+      subtitle="Plaintext never leaves this side of the boundary."
+      actions={
+        <SegmentedControl
+          value={inspectorView}
+          onChange={(value) => setInspectorView(value as InspectorView)}
+          options={[
+            ['source', 'Source'],
+            ['entities', 'Entities'],
+          ]}
+        />
+      }
+    >
+      {!sessionId ? (
+        <EmptyState title="No active vault" body="Start a session to create a temporary key for restoration." />
+      ) : !result ? (
+        <EmptyState title="Waiting for a run" body="Upload a document and run the pipeline to inspect detected values." />
+      ) : inspectorView === 'source' ? (
+        <div className="font-mono text-[13px] leading-6">
+          <HighlightedText text={result.document_text} entities={result.detected_entities} />
+        </div>
+      ) : (
+        <EntityTable result={result} />
+      )}
+    </Panel>
+  );
+}
+
+function TrustConsole({
+  devMode,
+  result,
+  trustView,
+  setTrustView,
+  audit,
+}: {
+  devMode: boolean;
+  result: PipelineResult | null;
+  trustView: TrustView;
+  setTrustView: (v: TrustView) => void;
+  audit: AuditEntry[];
+}) {
+  const options: Array<[TrustView, string]> = devMode
+    ? [
+        ['rendered', 'Rendered'],
+        ['markdown', 'Markdown'],
+        ['raw', 'Raw'],
+        ['payload', 'Outbound'],
+      ]
+    : [
+        ['rendered', 'Rendered'],
+        ['markdown', 'Markdown'],
+      ];
+  const visibleTrustView =
+    devMode || (trustView !== 'raw' && trustView !== 'payload')
+      ? trustView
+      : 'rendered';
+
+  return (
+    <div className="flex min-h-0 flex-col gap-4">
+      <Panel
+        title="Trust Boundary"
+        subtitle="The outbound tab is the provider-visible payload."
+        actions={
+          <SegmentedControl
+            value={visibleTrustView}
+            onChange={(value) => setTrustView(value as TrustView)}
+            options={options}
+          />
+        }
+        className="flex-[1.25]"
+      >
+        {!result ? (
+          <EmptyState title="No response yet" body="Run the pipeline to inspect the sanitized payload and restored answer." />
+        ) : (
+          <TrustContent result={result} trustView={visibleTrustView} />
+        )}
+      </Panel>
+      <AuditConsole audit={audit} />
     </div>
   );
 }
 
-function ResponseToolbar({
-  responseView,
-  setResponseView,
+function EntityTable({ result }: { result: PipelineResult }) {
+  const byType = new Map<string, number>();
+  result.detected_entities.forEach((entity) => {
+    byType.set(entity.type, (byType.get(entity.type) ?? 0) + 1);
+  });
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <Metric label="Entities" value={String(result.detected_entities.length)} />
+        <Metric label="Types" value={String(byType.size)} />
+      </div>
+      <div className="overflow-hidden rounded border border-border">
+        <table className="min-w-full text-sm">
+          <thead className="bg-surface text-left text-xs uppercase tracking-wider text-muted">
+            <tr>
+              <th className="px-3 py-2">Value</th>
+              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2 text-right">Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.detected_entities.map((entity, index) => (
+              <tr key={`${entity.start}-${index}`} className="border-t border-border/60">
+                <td className="max-w-[280px] truncate px-3 py-2 font-mono text-xs">{entity.text}</td>
+                <td className="px-3 py-2"><Badge>{entity.type}</Badge></td>
+                <td className="px-3 py-2 text-right font-mono text-xs text-muted">
+                  {(entity.confidence * 100).toFixed(0)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function TrustContent({
   result,
+  trustView,
 }: {
-  responseView: ResponseView;
-  setResponseView: (v: ResponseView) => void;
   result: PipelineResult;
+  trustView: TrustView;
 }) {
   const redactions = findRedactions(result.restored_response);
-  return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <label className="text-xs uppercase tracking-wider text-muted" htmlFor="response-view">
-          View
-        </label>
-        <select
-          id="response-view"
-          value={responseView}
-          onChange={(e) => setResponseView(e.target.value as ResponseView)}
-          className="rounded border border-border bg-white px-2 py-1 text-xs"
-        >
-          <option value="rendered">Rendered</option>
-          <option value="markdown">Markdown source</option>
-          <option value="raw">Raw LLM response</option>
-        </select>
+
+  if (trustView === 'payload') {
+    return (
+      <div className="space-y-3">
+        <BoundarySummary result={result} />
+        <CodeBlock className="max-h-[58vh]">{result.obfuscated_prompt}</CodeBlock>
       </div>
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Badge variant={result.strategy_name === 'tokenize' ? 'good' : 'accent'}>
-          {result.strategy_name}
-        </Badge>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={result.strategy_name === 'tokenize' ? 'good' : 'accent'}>{result.strategy_name}</Badge>
         {redactions.length > 0 && <Badge variant="warn">{redactions.length} redacted</Badge>}
       </div>
+      {redactions.length > 0 && (
+        <div className="rounded border border-warn-soft bg-warn-soft px-3 py-2 text-xs text-warn">
+          {redactions.length} unbacked redaction marker{redactions.length === 1 ? '' : 's'} remain.
+        </div>
+      )}
+      {trustView === 'raw' ? (
+        <CodeBlock className="max-h-[58vh]">{result.llm_response_raw}</CodeBlock>
+      ) : trustView === 'markdown' ? (
+        <CodeBlock className="max-h-[58vh]">{result.restored_response}</CodeBlock>
+      ) : (
+        <MarkdownRenderer text={result.restored_response} />
+      )}
     </div>
   );
 }
 
-function ResponseContent({
-  result,
-  responseView,
+function BoundarySummary({ result }: { result: PipelineResult }) {
+  return (
+    <div className="grid grid-cols-3 gap-2 text-xs">
+      <Metric label="Strategy" value={result.strategy_name} />
+      <Metric label="Prompt chars" value={String(result.obfuscated_prompt.length)} />
+      <Metric label="Entities" value={String(result.detected_entities.length)} />
+    </div>
+  );
+}
+
+function AuditConsole({ audit }: { audit: AuditEntry[] }) {
+  return (
+    <Panel title="Audit Console" subtitle="Append-only events; token IDs only." className="min-h-44 flex-[0.75]">
+      <div className="space-y-1 font-mono text-[11px]">
+        {audit.length === 0 && <p className="text-muted">No events yet.</p>}
+        {audit.slice(-18).reverse().map((event, index) => (
+          <div key={index} className="grid grid-cols-[72px_1fr] gap-2 border-b border-border/50 py-1">
+            <span className="text-muted">{new Date(event.timestamp).toLocaleTimeString()}</span>
+            <div className="min-w-0">
+              <span className="text-accent">{event.action}</span>
+              {event.entity_type && <span className="ml-2 text-muted">{event.entity_type}</span>}
+              {event.token_id && <div className="truncate text-ink">{event.token_id}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-border bg-bg px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className="mt-1 truncate font-mono text-sm">{value}</div>
+    </div>
+  );
+}
+
+function SegmentedControl({
+  value,
+  onChange,
+  options,
 }: {
-  result: PipelineResult;
-  responseView: ResponseView;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<[string, string]>;
 }) {
-  if (responseView === 'raw') {
-    return <CodeBlock className="max-h-96">{result.llm_response_raw}</CodeBlock>;
-  }
-  if (responseView === 'markdown') {
-    return <CodeBlock className="max-h-96">{result.restored_response}</CodeBlock>;
-  }
-  return <MarkdownRenderer text={result.restored_response} />;
+  return (
+    <div className="flex rounded border border-border bg-white p-0.5 text-xs">
+      {options.map(([optionValue, label]) => (
+        <button
+          key={optionValue}
+          type="button"
+          onClick={() => onChange(optionValue)}
+          className={`rounded px-2 py-1 transition ${
+            value === optionValue ? 'bg-accent text-white' : 'text-muted hover:bg-surface hover:text-ink'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="flex h-full min-h-64 items-center justify-center rounded border border-dashed border-border bg-bg p-6 text-center">
+      <div>
+        <h3 className="font-serif text-lg">{title}</h3>
+        <p className="mt-2 max-w-sm text-sm text-muted">{body}</p>
+      </div>
+    </div>
+  );
 }
 
 function findRedactions(text: string): string[] {

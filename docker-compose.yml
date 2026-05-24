@@ -14,10 +14,10 @@ services:
       - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com/}
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-secure-context-pipeline}
+      - AUDIT_PATH=${AUDIT_PATH:-data/audit.jsonl}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     volumes:
       - ./data:/app/data
-      - ./audit.jsonl:/app/audit.jsonl
 
   ui:
     build:

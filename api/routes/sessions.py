@@ -26,7 +26,11 @@ def _docstore(request: Request):
 async def start_session(
     body: StartSessionRequest, request: Request
 ) -> StartSessionResponse:
-    if body.strategy not in available_strategies():
+    strategy = (
+        body.strategy
+        or request.app.state.app_state.settings.obfuscation_strategy_default
+    )
+    if strategy not in available_strategies():
         raise HTTPException(
             status_code=400,
             detail={
@@ -34,7 +38,7 @@ async def start_session(
                 "available": available_strategies(),
             },
         )
-    pipeline = await _manager(request).start_session(body.user_id, body.strategy)
+    pipeline = await _manager(request).start_session(body.user_id, strategy)
     return StartSessionResponse(
         session_id=pipeline.session_id,
         user_id=body.user_id,

@@ -70,5 +70,5 @@ class PseudonymizationStrategy(ObfuscationStrategy):
             # emit raw text. The factory is per-call so each unknown entity
             # gets a stable surrogate via the vault's dedup.
             def generator(t: str, _v: str) -> str:  # noqa: E731
-                return f"[redacted {t.lower()}]"
+                return self._unique_placeholder(f"redacted {t.lower()}")
         return await vault.store(entity.type, entity.text, factory=generator)

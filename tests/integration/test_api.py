@@ -106,6 +106,26 @@ async def test_unknown_strategy_rejected(client: httpx.AsyncClient) -> None:
     assert "tokenize" in body["detail"]["available"]
 
 
+async def test_omitted_strategy_uses_configured_default(tmp_path: Path) -> None:
+    settings = Settings(
+        ANTHROPIC_API_KEY="",
+        OBFUSCATION_STRATEGY="pseudonymize",
+        DATA_DIR=str(tmp_path / "data"),
+        AUDIT_PATH=str(tmp_path / "audit.jsonl"),
+        VAULT_DB_PATH=str(tmp_path / "vault.db"),
+        USER_KEYS_PATH=str(tmp_path / "user_keys.json"),
+    )
+    app = create_app(settings)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with app.router.lifespan_context(app):
+            r = await ac.post("/sessions", json={"user_id": "alice"})
+
+    assert r.status_code == 201
+    assert r.json()["strategy"] == "pseudonymize"
+
+
 async def test_path_like_user_id_rejected(client: httpx.AsyncClient) -> None:
     r = await client.post(
         "/sessions", json={"user_id": "../outside", "strategy": "tokenize"}
