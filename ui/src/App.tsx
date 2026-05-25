@@ -2,10 +2,11 @@ import { useCallback, useState } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import {
   type PipelineResult,
+  type PipelineProgressEvent,
   type Strategy,
   endSession,
   fetchAudit,
-  runPipeline,
+  runPipelineStream,
   startSession,
   uploadDocument,
 } from './api';
@@ -30,6 +31,7 @@ function Page() {
     'Summarize this document and flag anything that warrants follow-up.',
   );
   const [result, setResult] = useState<PipelineResult | null>(null);
+  const [progressEvents, setProgressEvents] = useState<PipelineProgressEvent[]>([]);
 
   const uploadMut = useMutation({
     mutationFn: async (file: File) => {
@@ -45,13 +47,17 @@ function Page() {
       setDocId(r.doc_id);
       setDocFilename(r.filename);
       setResult(null);
+      setProgressEvents([]);
     },
   });
 
   const runMut = useMutation({
     mutationFn: async () => {
       if (!sessionId || !docId) throw new Error('Need session + document');
-      return runPipeline(sessionId, docId, query);
+      setProgressEvents([]);
+      return runPipelineStream(sessionId, docId, query, (event) => {
+        setProgressEvents((events) => [...events, event]);
+      });
     },
     onSuccess: (r) => setResult(r),
   });
@@ -66,6 +72,7 @@ function Page() {
       setDocId(null);
       setDocFilename(null);
       setResult(null);
+      setProgressEvents([]);
       runMut.reset();
     },
   });
@@ -120,6 +127,7 @@ function Page() {
           strategy={strategy}
           result={result}
           audit={auditEvents}
+          progressEvents={progressEvents}
           sessionId={sessionId}
           docFilename={docFilename}
           errorMessage={errorMessage}

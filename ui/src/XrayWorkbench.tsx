@@ -11,6 +11,7 @@ import {
   type AuditEntry,
   type AuditStage,
   type Entity,
+  type PipelineProgressEvent,
   type PipelineResult,
   type Strategy,
 } from './api';
@@ -38,6 +39,7 @@ export interface XrayWorkbenchProps {
   strategy: Strategy;
   result: PipelineResult | null;
   audit: AuditEntry[];
+  progressEvents: PipelineProgressEvent[];
   sessionId: string | null;
   docFilename: string | null;
   errorMessage: string | null;
@@ -53,6 +55,7 @@ export function XrayWorkbench({
   strategy,
   result,
   audit,
+  progressEvents,
   sessionId,
   docFilename,
   errorMessage,
@@ -79,12 +82,29 @@ export function XrayWorkbench({
   const tokenCount = uniqueMap.length;
   const entityCount = result?.detected_entities.length ?? 0;
 
-  const progress = runState === 'complete' ? 5 : 0;
-  const stageIndex = STAGES.indexOf(selected);
+  const latestProgress = useMemo(() => {
+    const byStage = new Map<StageId, PipelineProgressEvent>();
+    progressEvents.forEach((event) => byStage.set(event.stage, event));
+    return byStage;
+  }, [progressEvents]);
+
+  const activeSelected =
+    runState === 'running' && progressEvents.length > 0
+      ? progressEvents[progressEvents.length - 1].stage
+      : selected;
+
+  const progress =
+    runState === 'complete'
+      ? 5
+      : STAGES.filter((stage) => latestProgress.get(stage)?.status === 'completed').length;
+  const stageIndex = STAGES.indexOf(activeSelected);
   const stageStatusFor = (i: number): StageStatus => {
-    if (i < progress) return 'done';
-    if (i === progress && runState === 'running') return 'running';
-    if (i === progress && runState === 'error') return 'errored';
+    if (runState === 'complete') return 'done';
+    const event = latestProgress.get(STAGES[i]);
+    if (event?.status === 'completed') return 'done';
+    if (event?.status === 'started') return 'running';
+    if (event?.status === 'failed') return 'errored';
+    if (runState === 'error' && i === progress) return 'errored';
     return 'pending';
   };
 
@@ -120,7 +140,7 @@ export function XrayWorkbench({
         canRerun={canRerun}
       />
       <XrayMinimap
-        selected={selected}
+        activeSelected={activeSelected}
         setSelected={setSelected}
         result={result}
         tokenCount={tokenCount}
@@ -131,7 +151,7 @@ export function XrayWorkbench({
         onToggleExpanded={() => setMinimapExpanded((v) => !v)}
       />
       <XrayInspector
-        selected={selected}
+        activeSelected={activeSelected}
         result={result}
         strategy={strategy}
         audit={visibleAudit}
@@ -254,7 +274,7 @@ function XrayHeader({
 // ─── Minimap ───────────────────────────────────────────────────────────────
 
 interface MinimapProps {
-  selected: StageId;
+  activeSelected: StageId;
   setSelected: (s: StageId) => void;
   result: PipelineResult | null;
   tokenCount: number;
@@ -266,7 +286,7 @@ interface MinimapProps {
 }
 
 function XrayMinimap({
-  selected,
+  activeSelected,
   setSelected,
   result,
   tokenCount,
@@ -300,9 +320,9 @@ function XrayMinimap({
                 key={id}
                 onClick={() => setSelected(id)}
                 className={`flex min-w-0 items-center gap-2 rounded-[3px] border px-3 py-1.5 text-[13px] transition ${
-                  selected === id ? 'bg-xray-inset-deep text-white' : 'text-xray-muted hover:text-xray-ink'
+                  activeSelected === id ? 'bg-xray-inset-deep text-white' : 'text-xray-muted hover:text-xray-ink'
                 }`}
-                style={{ borderColor: selected === id ? '#b85450' : '#3a352b' }}
+                style={{ borderColor: activeSelected === id ? '#b85450' : '#3a352b' }}
               >
                 <span
                   className={stageStatusFor(i) === 'running' ? 'animate-xray-pulse' : ''}
@@ -367,7 +387,7 @@ function XrayMinimap({
               metric={metricFor(id, i)}
               num={i + 1}
               zone="local"
-              selected={selected === id}
+              selected={activeSelected === id}
               status={stageStatusFor(i)}
               onClick={() => setSelected(id)}
             />
@@ -383,7 +403,7 @@ function XrayMinimap({
               metric={metricFor(id, i + 3)}
               num={i + 4}
               zone="crossed"
-              selected={selected === id}
+              selected={activeSelected === id}
               status={stageStatusFor(i + 3)}
               onClick={() => setSelected(id)}
             />
@@ -529,7 +549,7 @@ function XrayBoundaryDivider() {
 // ─── Inspector ─────────────────────────────────────────────────────────────
 
 interface InspectorProps {
-  selected: StageId;
+  activeSelected: StageId;
   result: PipelineResult | null;
   strategy: Strategy;
   audit: AuditEntry[];
@@ -544,7 +564,7 @@ interface InspectorProps {
 }
 
 function XrayInspector({
-  selected,
+  activeSelected,
   result,
   strategy,
   audit,
@@ -560,7 +580,7 @@ function XrayInspector({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
       <XrayStageBanner
-        selected={selected}
+        selected={activeSelected}
         result={result}
         strategy={strategy}
         stageStatus={stageStatus}
@@ -580,13 +600,13 @@ function XrayInspector({
           <XrayPendingPlaceholder runState="idle" />
         ) : (
           <>
-            {selected === 'document' && (
+            {activeSelected === 'document' && (
               <XrayDocument result={result} hovered={hovered} setHovered={setHovered} audit={audit} />
             )}
-            {selected === 'detect' && (
+            {activeSelected === 'detect' && (
               <XrayDetect result={result} hovered={hovered} setHovered={setHovered} audit={audit} />
             )}
-            {selected === 'obfuscate' && (
+            {activeSelected === 'obfuscate' && (
               <XrayObfuscate
                 result={result}
                 strategy={strategy}
@@ -595,8 +615,8 @@ function XrayInspector({
                 uniqueMap={uniqueMap}
               />
             )}
-            {selected === 'llm' && <XrayLlm result={result} />}
-            {selected === 'restore' && (
+            {activeSelected === 'llm' && <XrayLlm result={result} />}
+            {activeSelected === 'restore' && (
               <XrayRestore
                 result={result}
                 hovered={hovered}

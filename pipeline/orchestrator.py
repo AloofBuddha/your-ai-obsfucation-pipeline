@@ -1,9 +1,11 @@
 """Pipeline orchestrator — one instance per session."""
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 from audit import AuditEvent, AuditLog
 from deobfuscation import Deobfuscator
-from detection import DEFAULT_THRESHOLD, Detector
+from detection import DEFAULT_THRESHOLD, Detector, Entity
 from llm_client import LLMClient
 from obfuscation import ObfuscationEngine
 from obfuscation.strategies.base import ObfuscationStrategy
@@ -14,6 +16,12 @@ from vault import SessionExpiredError, SessionVault
 
 def _build_user_message(obfuscated_query: str, obfuscated_doc: str) -> str:
     return f"{obfuscated_query}\n\n--- DOCUMENT ---\n{obfuscated_doc}"
+
+
+PipelineProgressCallback = Callable[
+    [str, str, dict[str, str | int | float | bool | None]],
+    Awaitable[None],
+]
 
 
 class Pipeline:
@@ -65,6 +73,24 @@ class Pipeline:
         return self._vault
 
     async def run(self, *, doc_id: str, query: str) -> PipelineResult:
+        return await self._run(doc_id=doc_id, query=query, progress=None)
+
+    async def run_with_progress(
+        self,
+        *,
+        doc_id: str,
+        query: str,
+        progress: PipelineProgressCallback,
+    ) -> PipelineResult:
+        return await self._run(doc_id=doc_id, query=query, progress=progress)
+
+    async def _run(
+        self,
+        *,
+        doc_id: str,
+        query: str,
+        progress: PipelineProgressCallback | None,
+    ) -> PipelineResult:
         """Full pipeline: load -> obfuscate -> LLM -> restore.
 
         Fails fast if the session has been destroyed, regardless of whether
@@ -75,14 +101,48 @@ class Pipeline:
             raise SessionExpiredError(
                 f"Pipeline session {self._session_id!r} is destroyed"
             )
-        document_text = await self._store.get_text(self._user_id, doc_id)
 
-        doc_result = await self._engine.obfuscate(document_text)
+        async def emit(
+            stage: str,
+            status: str,
+            metadata: dict[str, str | int | float | bool | None] | None = None,
+        ) -> None:
+            if progress is not None:
+                await progress(stage, status, metadata or {})
+
+        await emit("document", "started", {"document_id": doc_id})
+        document_text = await self._store.get_text(self._user_id, doc_id)
+        await emit(
+            "document",
+            "completed",
+            {"document_id": doc_id, "char_count": len(document_text)},
+        )
+
+        await emit("detect", "started", {"target": "document"})
+
+        async def on_document_detected(entities: list[Entity]) -> None:
+            await emit(
+                "detect",
+                "completed",
+                {"entities": len(entities), "types": len({e.type for e in entities})},
+            )
+            await emit("obfuscate", "started", {"target": "document"})
+
+        doc_result = await self._engine.obfuscate(
+            document_text,
+            on_detected=on_document_detected,
+        )
+        await emit(
+            "obfuscate",
+            "completed",
+            {"replacements": len(doc_result.replacements)},
+        )
         query_result = await self._engine.obfuscate(query)
         user_message = _build_user_message(
             query_result.obfuscated_text, doc_result.obfuscated_text
         )
 
+        await emit("llm", "started", {"prompt_char_count": len(user_message)})
         await self._audit.emit(
             AuditEvent(
                 session_id=self._session_id,
@@ -94,9 +154,12 @@ class Pipeline:
             )
         )
         llm_response = await self._llm.generate(system="", user=user_message)
+        await emit("llm", "completed", {"response_char_count": len(llm_response)})
+        await emit("restore", "started", {"strategy": self.strategy_name})
         restored = await self._deobfuscator.restore(
             llm_response, self._vault, self.strategy_name
         )
+        await emit("restore", "completed", {"response_char_count": len(restored)})
 
         await self._audit.emit(
             AuditEvent(

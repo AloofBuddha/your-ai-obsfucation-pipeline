@@ -1,0 +1,15 @@
+SMALL BUSINESS TAX INTAKE
+
+| Field | Value |
+| --- | --- |
+| Owner | Marcus P. Lee |
+| SSN | 529-99-0002 |
+| Email | marcus.lee@example.com |
+| Phone | (212) 555-0144 |
+| Home address | 19 Market St |
+| Business EIN | 82-7654321 |
+| Operating account | 4111 1111 1111 1111 |
+
+Notes:
+- Payroll export references 5500 0000 0000 0004 for reimbursement testing.
+- Advisor should summarize filing risks without repeating raw identifiers.

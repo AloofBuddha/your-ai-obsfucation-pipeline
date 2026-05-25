@@ -1,6 +1,7 @@
 """API contract tests — sessions, document upload, pipeline run, audit."""
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -94,6 +95,51 @@ async def test_full_session_flow(client: httpx.AsyncClient) -> None:
         json={"doc_id": doc_id, "user_query": "again"},
     )
     assert r.status_code == 404
+
+
+async def test_pipeline_stream_emits_real_progress_events(
+    client: httpx.AsyncClient,
+) -> None:
+    r = await client.post(
+        "/sessions", json={"user_id": "stream_user", "strategy": "tokenize"}
+    )
+    assert r.status_code == 201
+    session_id = r.json()["session_id"]
+
+    files = {"file": ("intake.txt", b"Patient Sofia Reyes has Type 2 diabetes.", "text/plain")}
+    r = await client.post(f"/sessions/{session_id}/documents", files=files)
+    assert r.status_code == 201
+    doc_id = r.json()["doc_id"]
+
+    async with client.stream(
+        "POST",
+        f"/sessions/{session_id}/pipeline/stream",
+        json={"doc_id": doc_id, "user_query": "Summarize."},
+    ) as response:
+        assert response.status_code == 200
+        body = "".join([chunk async for chunk in response.aiter_text()])
+
+    frames = [frame for frame in body.split("\n\n") if frame.strip()]
+    events: list[tuple[str, dict]] = []
+    for frame in frames:
+        lines = frame.splitlines()
+        event = next(line.removeprefix("event: ") for line in lines if line.startswith("event: "))
+        data = next(line.removeprefix("data: ") for line in lines if line.startswith("data: "))
+        events.append((event, json.loads(data)))
+
+    progress = [data for event, data in events if event == "progress"]
+    result = [data for event, data in events if event == "result"]
+
+    assert [event["stage"] for event in progress if event["status"] == "started"] == [
+        "document",
+        "detect",
+        "obfuscate",
+        "llm",
+        "restore",
+    ]
+    assert result
+    assert "Sofia Reyes" not in result[0]["obfuscated_prompt"]
+    assert "Sofia Reyes" in result[0]["restored_response"]
 
 
 async def test_unknown_strategy_rejected(client: httpx.AsyncClient) -> None:

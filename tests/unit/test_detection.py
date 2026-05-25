@@ -9,6 +9,7 @@ from detection import (
     LEGAL_PRIVILEGE,
     PHI_DIAGNOSIS,
     PHI_INSURANCE_ID,
+    PHI_MEDICAL_LICENSE,
     PHI_MEDICATION,
     PHI_MRN,
     PII_DOB,
@@ -81,6 +82,18 @@ async def test_detects_insurance_member_id_value(detector: PresidioDetector) -> 
     assert insurance_entities
     assert any("BCBSTX8472301" in e.text for e in insurance_entities)
     assert any("ABC123456" in e.text for e in insurance_entities)
+
+
+async def test_detects_medical_license_with_provider_context(
+    detector: PresidioDetector,
+) -> None:
+    entities = await detector.detect("Referring provider license: HP223344")
+    medical_license_entities = [
+        e for e in entities if e.type == PHI_MEDICAL_LICENSE
+    ]
+
+    assert medical_license_entities
+    assert any("HP223344" in e.text for e in medical_license_entities)
 
 
 async def test_detects_legal_privilege(detector: PresidioDetector) -> None:

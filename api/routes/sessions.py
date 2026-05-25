@@ -1,6 +1,8 @@
 """Session lifecycle + document upload routes."""
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from api.schemas import (
@@ -9,17 +11,18 @@ from api.schemas import (
     StartSessionResponse,
 )
 from obfuscation.strategies import available_strategies
-from pipeline import SessionNotFoundError
+from pipeline import SessionManager, SessionNotFoundError
+from store import FilesystemDocumentStore
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
-def _manager(request: Request):
-    return request.app.state.app_state.manager
+def _manager(request: Request) -> SessionManager:
+    return cast(SessionManager, request.app.state.app_state.manager)
 
 
-def _docstore(request: Request):
-    return request.app.state.app_state.docstore
+def _docstore(request: Request) -> FilesystemDocumentStore:
+    return cast(FilesystemDocumentStore, request.app.state.app_state.docstore)
 
 
 @router.post("", response_model=StartSessionResponse, status_code=201)

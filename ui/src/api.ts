@@ -38,6 +38,15 @@ export interface PipelineResult {
   strategy_name: Strategy;
 }
 
+export type PipelineStage = 'document' | 'detect' | 'obfuscate' | 'llm' | 'restore';
+export type PipelineProgressStatus = 'started' | 'completed' | 'failed';
+
+export interface PipelineProgressEvent {
+  stage: PipelineStage;
+  status: PipelineProgressStatus;
+  metadata: Record<string, string | number | boolean | null>;
+}
+
 export type AuditStage = 'vault' | 'detect' | 'obfuscate' | 'llm' | 'restore';
 
 export interface AuditEntry {
@@ -98,6 +107,53 @@ export async function runPipeline(
     user_query,
   });
   return data;
+}
+
+export async function runPipelineStream(
+  session_id: string,
+  doc_id: string,
+  user_query: string,
+  onProgress: (event: PipelineProgressEvent) => void,
+): Promise<PipelineResult> {
+  const response = await fetch(`${BASE_URL}/sessions/${session_id}/pipeline/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ doc_id, user_query }),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`Pipeline request failed (${response.status})`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: PipelineResult | null = null;
+
+  const consumeFrame = (frame: string) => {
+    const event = frame.match(/^event: (.+)$/m)?.[1];
+    const dataLine = frame.match(/^data: (.+)$/m)?.[1];
+    if (!event || !dataLine) return;
+    const data = JSON.parse(dataLine);
+    if (event === 'progress') {
+      onProgress(data as PipelineProgressEvent);
+    } else if (event === 'result') {
+      result = data as PipelineResult;
+    } else if (event === 'error') {
+      throw new Error(data.error ?? 'Pipeline failed');
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) consumeFrame(frame);
+    if (done) break;
+  }
+  if (buffer.trim()) consumeFrame(buffer);
+  if (!result) throw new Error('Pipeline stream ended without a result');
+  return result;
 }
 
 export async function fetchAudit(session_id: string): Promise<AuditEntry[]> {

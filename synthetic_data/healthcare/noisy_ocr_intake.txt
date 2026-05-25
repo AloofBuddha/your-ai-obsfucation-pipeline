@@ -1,0 +1,15 @@
+OCR EXTRACT - URGENT CARE INTAKE
+
+PATIENT: Lena M. Ortiz
+DOB: 07/09/1968
+MRN: 7654321
+PHONE: (602) 555-0166
+EMAIL: lena.ortiz@example.net
+ADDRESS: 240 Cedar Ave
+
+Chief concern: hypertension follow-up.
+Medication list: Lisinopril 20 mg, Aspirin 81 mg.
+Insurance Member ID: PREM7711002
+
+OCR notes: some printed fields have irregular spacing, but this synthetic text
+keeps the sensitive values machine-readable for detector regression coverage.

@@ -1,0 +1,17 @@
+Subject: Referral follow-up for Priya N. Shah
+
+From: clinic-coordinator@example.org
+To: raj.patel@example.org
+
+Dr. Patel,
+
+Patient Priya N. Shah, DOB 04/22/1982, MRN: 6543210, called about worsening
+asthma symptoms. Her Member ID: HZN55220019 remains active for the pulmonary
+referral. Current medications include Albuterol 90 mg and Prednisone 20 mg.
+
+Please call Priya at (303) 555-0119 after reviewing the referral notes.
+
+--
+Reply from Raj Patel:
+I will review the chart today and document whether the asthma plan needs a
+medication adjustment.

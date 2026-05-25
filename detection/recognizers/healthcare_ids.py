@@ -1,4 +1,4 @@
-"""PHI_MRN and PHI_INSURANCE_ID — pattern-based recognition for healthcare identifiers."""
+"""Healthcare identifier recognizers — pattern-based PHI recognition."""
 from __future__ import annotations
 
 from presidio_analyzer import Pattern, PatternRecognizer
@@ -50,4 +50,31 @@ class InsuranceIDRecognizer(PatternRecognizer):
                 ),
             ],
             context=["insurance", "policy", "member id", "plan", "subscriber"],
+        )
+
+
+class ProviderMedicalLicenseRecognizer(PatternRecognizer):
+    """Provider medical license identifiers in referral packets and clinical notes.
+
+    Presidio's built-in MEDICAL_LICENSE recognizer covers common US formats but
+    misses compact local/provider examples such as "Provider license: HP223344".
+    The label/context requirement keeps short alphanumeric IDs from turning into
+    broad false positives.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            supported_entity="PHI_MEDICAL_LICENSE",
+            patterns=[
+                Pattern(
+                    name="medical_license_labeled",
+                    regex=(
+                        r"\b(?:Provider\s+license|Medical\s+license|"
+                        r"License\s*(?:ID|#|No\.?)?|NPI)"
+                        r"[:\s#-]+[A-Z]{1,4}\d{5,10}\b"
+                    ),
+                    score=0.9,
+                ),
+            ],
+            context=["provider", "physician", "clinician", "license", "npi"],
         )

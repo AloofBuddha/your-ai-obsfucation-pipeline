@@ -59,4 +59,5 @@ def _extract_pdf(raw: bytes) -> str:
 
 def _extract_image(raw: bytes) -> str:
     img = Image.open(io.BytesIO(raw))
-    return pytesseract.image_to_string(img)
+    text: str = pytesseract.image_to_string(img)
+    return text

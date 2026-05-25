@@ -1,0 +1,14 @@
+ATTORNEY-CLIENT PRIVILEGED
+ATTORNEY WORK PRODUCT
+
+Draft brief excerpt for Elena V. Morris regarding settlement strategy in Morris v.
+Northbank Analytics. Counsel Priya S. Raman should avoid disclosing the client's
+backup payment account 4111 1111 1111 1111 in any filing.
+
+The record references witness Daniel J. Cho, who can be reached at
+daniel.cho@example.org or (646) 555-0182. The settlement range discussed under
+Rule 408 should remain privileged and confidential.
+
+The brief is intentionally longer than the compact legal fixture so review demos
+can show repeated names, privilege markers, and financial identifiers across
+multiple paragraphs without using real case material.

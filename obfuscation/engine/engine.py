@@ -14,6 +14,7 @@ ability to restore values the LLM repeats.
 """
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from audit import AuditEvent, AuditLog
@@ -27,6 +28,9 @@ class ObfuscationResult:
     obfuscated_text: str
     entities: list[Entity]  # all detected (kept after overlap-resolution)
     replacements: dict[int, str]  # entity index -> the string that replaced it
+
+
+DetectedCallback = Callable[[list[Entity]], Awaitable[None]]
 
 
 def _resolve_overlaps(entities: list[Entity]) -> list[Entity]:
@@ -80,9 +84,15 @@ class ObfuscationEngine:
         self._audit = audit
         self._default_confidence_threshold = default_confidence_threshold
 
-    async def obfuscate(self, text: str) -> ObfuscationResult:
+    async def obfuscate(
+        self,
+        text: str,
+        on_detected: DetectedCallback | None = None,
+    ) -> ObfuscationResult:
         raw = await self._detector.detect(text)
         entities = _resolve_overlaps(raw)
+        if on_detected is not None:
+            await on_detected(entities)
 
         # Compute replacements left-to-right (sequential to preserve order in
         # vault/audit) but apply them right-to-left so offsets stay valid.

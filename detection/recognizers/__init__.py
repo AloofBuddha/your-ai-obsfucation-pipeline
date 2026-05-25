@@ -10,6 +10,7 @@ from detection.recognizers.financial import AccountNumberRecognizer, TaxIDRecogn
 from detection.recognizers.healthcare_ids import (
     InsuranceIDRecognizer,
     MRNRecognizer,
+    ProviderMedicalLicenseRecognizer,
 )
 from detection.recognizers.legal import LegalPrivilegeRecognizer
 from detection.recognizers.medication import MedicationRecognizer
@@ -22,6 +23,7 @@ def all_custom_recognizers() -> list[EntityRecognizer]:
         MedicationRecognizer(),
         MRNRecognizer(),
         InsuranceIDRecognizer(),
+        ProviderMedicalLicenseRecognizer(),
         AccountNumberRecognizer(),
         TaxIDRecognizer(),
         LegalPrivilegeRecognizer(),

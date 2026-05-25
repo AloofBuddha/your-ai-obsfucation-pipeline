@@ -1,0 +1,15 @@
+CUSTOMER SECURITY ESCALATION
+
+Customer: Harper J. Nguyen
+Email: harper.nguyen@example.net
+Phone: (408) 555-0191
+Address: 77 Sunset Blvd
+SSN: 529-99-0003
+Driver License: D7654321
+Passport: X87654321
+Login IP: 203.0.113.77
+Reset URL: https://support.example.com/reset/harper
+
+The customer pasted identifiers into a free-form ticket with extra prose around
+them. The model should receive typed replacements, not raw account-recovery
+material.

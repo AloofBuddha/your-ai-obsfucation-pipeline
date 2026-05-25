@@ -30,7 +30,7 @@ uv run python demo.py --strategy pseudonymize
 uv run python demo.py --fixture legal_memo --format pdf
 
 # 5. Run the full test suite
-uv run pytest                               # 99 tests, ~25s
+uv run pytest                               # 138 tests, ~45s
 uv run pytest -m perf                       # 4 perf benchmarks
 ```
 
@@ -234,7 +234,7 @@ a new obfuscation strategy touches only the relevant leaf module.
 ## Test coverage
 
 ```
-uv run pytest          # 99 functional tests, ~12s
+uv run pytest          # 138 functional tests, ~45s
 uv run pytest -m perf  # 4 perf benchmarks, ~10s
 ```
 
@@ -250,6 +250,9 @@ PRD-required test scenarios all live in `tests/`:
 | `test_doc_encrypted_at_rest` | Raw bytes on disk contain no plaintext from input |
 | `test_cross_user_decrypt_fails` | User B's key can't decrypt User A's doc |
 | `test_outbound_payload_zero_pii` | Captured outbound LLM body contains no source-entity substrings |
+| `test_manifest_planted_entities_are_detected_with_expected_type` | Every planted value in `synthetic_data/manifest.json` is detected as its expected entity type |
+| `test_manifest_planted_entities_do_not_reach_llm_payload` | Every manifest-backed synthetic document runs through the pipeline with zero planted-value leakage |
+| `test_pipeline_stream_emits_real_progress_events` | Streaming API emits backend-derived progress events for document, detection, obfuscation, LLM, and restore stages |
 | `test_audit_log_purity` | After full run, grep'd audit log has zero source-entity matches |
 | `test_session_destroy_irreversible` | Post-destroy lookup → None; ciphertext gone |
 | `test_zero_pii_leakage_100_runs` | 100 randomized fixtures, no leakage; planted == detected (catches vacuous passes) |
@@ -354,9 +357,10 @@ PRD-required test scenarios all live in `tests/`:
 ├── api/                # FastAPI HTTP layer
 ├── ui/                 # React + Vite + Tailwind frontend
 ├── tests/
-│   ├── unit/           # 87 tests — module isolation, fast
-│   ├── integration/    # 12 tests — full pipeline on fixtures
-│   └── fixtures/       # Synthetic medical / legal / financial sources + build.py
+│   ├── unit/           # Module isolation, fast
+│   ├── integration/    # Full pipeline, API, manifest corpus, leakage, perf
+│   └── fixtures/       # Rendered PDF/DOCX/TXT fixtures + build.py
+├── synthetic_data/     # Manifest-backed synthetic demo/regression corpus
 ├── demo.py             # CLI end-to-end demo
 ├── docker-compose.yml  # api + ui services
 ├── pyproject.toml
