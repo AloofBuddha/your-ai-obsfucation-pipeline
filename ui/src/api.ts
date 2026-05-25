@@ -38,6 +38,8 @@ export interface PipelineResult {
   strategy_name: Strategy;
 }
 
+export type AuditStage = 'vault' | 'detect' | 'obfuscate' | 'llm' | 'restore';
+
 export interface AuditEntry {
   timestamp: string;
   session_id: string;
@@ -45,6 +47,21 @@ export interface AuditEntry {
   entity_type: string | null;
   token_id: string | null;
   metadata: Record<string, string | number | boolean | null>;
+  stage: AuditStage;
+}
+
+const ACTION_TO_STAGE: Record<string, AuditStage> = {
+  VAULT_CREATE: 'vault',
+  VAULT_DESTROY: 'vault',
+  DOCUMENT_INGEST: 'vault',
+  OBFUSCATE: 'obfuscate',
+  LLM_CALL: 'llm',
+  DEOBFUSCATE: 'restore',
+  PIPELINE_RUN: 'restore',
+};
+
+function deriveStage(action: string): AuditStage {
+  return ACTION_TO_STAGE[action] ?? 'vault';
 }
 
 export async function startSession(
@@ -84,6 +101,8 @@ export async function runPipeline(
 }
 
 export async function fetchAudit(session_id: string): Promise<AuditEntry[]> {
-  const { data } = await http.get(`/sessions/${session_id}/audit`);
-  return data;
+  const { data } = await http.get<Omit<AuditEntry, 'stage'>[]>(
+    `/sessions/${session_id}/audit`,
+  );
+  return data.map((entry) => ({ ...entry, stage: deriveStage(entry.action) }));
 }
