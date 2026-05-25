@@ -17,7 +17,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --no-dev --frozen
 
 # Download spaCy model
-RUN uv run python -m spacy download en_core_web_lg
+RUN uv run --no-dev python -m spacy download en_core_web_lg
 
 # App source
 COPY . .
