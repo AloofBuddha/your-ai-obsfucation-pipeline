@@ -70,7 +70,7 @@ class ProviderMedicalLicenseRecognizer(PatternRecognizer):
                     name="medical_license_labeled",
                     regex=(
                         r"\b(?:Provider\s+license|Medical\s+license|"
-                        r"License\s*(?:ID|#|No\.?)?|NPI)"
+                        r"Clinician\s+license|Physician\s+license|NPI)"
                         r"[:\s#-]+[A-Z]{1,4}\d{5,10}\b"
                     ),
                     score=0.9,

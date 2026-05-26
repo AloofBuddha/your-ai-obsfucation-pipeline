@@ -260,6 +260,46 @@ PRD-required test scenarios all live in `tests/`:
 
 ---
 
+## LangSmith evals
+
+The repository includes an offline-first eval harness for the manifest-backed
+synthetic corpus. It runs the full pipeline against every document and strategy,
+then scores security and utility signals deterministically:
+
+| Score | Meaning |
+|---|---|
+| `leakage_pass` | No manifest-planted value appears in the outbound LLM payload |
+| `detection_pass` | Every planted value is detected as its expected entity type |
+| `restoration_pass` | The final response contains no unresolved vault tokens |
+| `utility_pass` | The final response is non-empty and substantive |
+
+Run locally without provider calls:
+
+```bash
+uv run python evals/run_langsmith.py --strategy both --llm echo
+```
+
+Upload sanitized runs and feedback scores to LangSmith:
+
+```bash
+uv sync --extra tracing
+LANGSMITH_API_KEY=... \
+LANGSMITH_PROJECT=secure-context-pipeline-evals \
+uv run python evals/run_langsmith.py --strategy both --llm echo
+```
+
+For utility/token-preservation checks against Anthropic:
+
+```bash
+ANTHROPIC_API_KEY=... uv run python evals/run_langsmith.py --strategy tokenize --llm anthropic
+```
+
+The LangSmith payload intentionally excludes raw source text and restored
+responses. Before upload, the harness scans all run inputs/outputs for planted
+manifest values and refuses to upload if any raw value is present.
+
+---
+
 ## Known gaps
 
 **In rough priority order — addressing each would be a non-trivial follow-up.**
@@ -328,7 +368,10 @@ PRD-required test scenarios all live in `tests/`:
 
 4. **Audit log signing.** Append-only is half the story; an attacker with disk
    access could remove inconvenient entries. Hash-chained or HMAC-signed
-   entries would make tampering detectable.
+   entries would make tampering detectable. Concretely, each audit row would
+   include `prev_hash` and `signature = HMAC(audit_key, prev_hash || canonical_json(row))`.
+   Verifiers recompute the chain from line 1 to the end; editing, deleting, or
+   reordering any event breaks every downstream hash.
 
 5. **A `vault.stats` panel for the UI**, restricted to dev mode. Currently
    omitted because exposing counts publicly is a side channel (PLAN §M2), but
